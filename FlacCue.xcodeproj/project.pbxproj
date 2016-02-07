@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		670465B81C5C02FE002ABD36 /* AccurateRip.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 670465B61C5C02FE002ABD36 /* AccurateRip.cpp */; };
+		670465B91C5C02FE002ABD36 /* AccurateRip.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 670465B71C5C02FE002ABD36 /* AccurateRip.hpp */; };
+		670465BC1C5C3A3B002ABD36 /* libcurl.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 670465BA1C5C36D7002ABD36 /* libcurl.tbd */; };
+		670465BD1C5C3A43002ABD36 /* libcurl.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 670465BA1C5C36D7002ABD36 /* libcurl.tbd */; };
 		67E00B711C4D8B3F00BA13DA /* CueParse.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 67E00A901C42AC7700BA13DA /* CueParse.cpp */; };
 		67E00B721C4D8B4200BA13DA /* cue.c in Sources */ = {isa = PBXBuildFile; fileRef = 67E00A811C3F349500BA13DA /* cue.c */; };
 		67E00B731C4D8B4400BA13DA /* cue.parser in Sources */ = {isa = PBXBuildFile; fileRef = 67E00A6E1C3C746600BA13DA /* cue.parser */; };
@@ -77,6 +81,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		670465B31C5ABFB4002ABD36 /* TestUtils.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = TestUtils.hpp; path = FlacCueUnitTests/TestUtils.hpp; sourceTree = SOURCE_ROOT; };
+		670465B41C5AC046002ABD36 /* CueParseTest.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = CueParseTest.hpp; path = FlacCueUnitTests/CueParseTest.hpp; sourceTree = SOURCE_ROOT; };
+		670465B51C5AC091002ABD36 /* GapsAppendedSplitTest.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = GapsAppendedSplitTest.hpp; path = FlacCueUnitTests/GapsAppendedSplitTest.hpp; sourceTree = SOURCE_ROOT; };
+		670465B61C5C02FE002ABD36 /* AccurateRip.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AccurateRip.cpp; sourceTree = "<group>"; };
+		670465B71C5C02FE002ABD36 /* AccurateRip.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = AccurateRip.hpp; sourceTree = "<group>"; };
+		670465BA1C5C36D7002ABD36 /* libcurl.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libcurl.tbd; path = usr/lib/libcurl.tbd; sourceTree = SDKROOT; };
 		67E00A6D1C3C746600BA13DA /* cue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cue.h; sourceTree = "<group>"; };
 		67E00A6E1C3C746600BA13DA /* cue.parser */ = {isa = PBXFileReference; lastKnownFileType = folder; path = cue.parser; sourceTree = "<group>"; };
 		67E00A811C3F349500BA13DA /* cue.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = cue.c; sourceTree = "<group>"; };
@@ -98,6 +108,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				670465BD1C5C3A43002ABD36 /* libcurl.tbd in Frameworks */,
 				67E00B8C1C4D8E5200BA13DA /* libboost_unit_test_framework.dylib in Frameworks */,
 				67E00B871C4D8CB300BA13DA /* FlacCue.framework in Frameworks */,
 			);
@@ -115,6 +126,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				670465BC1C5C3A3B002ABD36 /* libcurl.tbd in Frameworks */,
 				67E00B861C4D8CAE00BA13DA /* FlacCue.framework in Frameworks */,
 				67E00B881C4D8CE000BA13DA /* libFLAC++.6.dylib in Frameworks */,
 			);
@@ -126,6 +138,7 @@
 		678363BB1C3459D600193929 = {
 			isa = PBXGroup;
 			children = (
+				670465BA1C5C36D7002ABD36 /* libcurl.tbd */,
 				67E00B7F1C4D8B9900BA13DA /* libFLAC++.6.dylib */,
 				67E00B5E1C4D633400BA13DA /* libboost_unit_test_framework.dylib */,
 				678363C61C3459D600193929 /* FlacCue */,
@@ -152,6 +165,8 @@
 				67E00BAF1C4F0A1F00BA13DA /* FlacCue.h */,
 				67E00A8F1C41DA6F00BA13DA /* CueParse.hpp */,
 				67E00A901C42AC7700BA13DA /* CueParse.cpp */,
+				670465B71C5C02FE002ABD36 /* AccurateRip.hpp */,
+				670465B61C5C02FE002ABD36 /* AccurateRip.cpp */,
 				67E00A6D1C3C746600BA13DA /* cue.h */,
 				67E00A811C3F349500BA13DA /* cue.c */,
 				67E00A6E1C3C746600BA13DA /* cue.parser */,
@@ -163,6 +178,9 @@
 			isa = PBXGroup;
 			children = (
 				67E00B891C4D8D7300BA13DA /* main.cpp */,
+				670465B51C5AC091002ABD36 /* GapsAppendedSplitTest.hpp */,
+				670465B41C5AC046002ABD36 /* CueParseTest.hpp */,
+				670465B31C5ABFB4002ABD36 /* TestUtils.hpp */,
 			);
 			name = FlacCueUnitTests;
 			path = FlacCueTests;
@@ -184,6 +202,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				67E00BB01C4F0A3F00BA13DA /* FlacCue.h in Headers */,
+				670465B91C5C02FE002ABD36 /* AccurateRip.hpp in Headers */,
 				67E00BB11C4F0A3F00BA13DA /* CueParse.hpp in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -309,6 +328,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				67E00B711C4D8B3F00BA13DA /* CueParse.cpp in Sources */,
+				670465B81C5C02FE002ABD36 /* AccurateRip.cpp in Sources */,
 				67E00B721C4D8B4200BA13DA /* cue.c in Sources */,
 				67E00B731C4D8B4400BA13DA /* cue.parser in Sources */,
 			);
@@ -546,6 +566,7 @@
 				67E00B5D1C4D62F600BA13DA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		67E00B6B1C4D8A4D00BA13DA /* Build configuration list for PBXNativeTarget "FlacCue" */ = {
 			isa = XCConfigurationList;
@@ -554,6 +575,7 @@
 				67E00B6D1C4D8A4D00BA13DA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		67E00B7C1C4D8B7700BA13DA /* Build configuration list for PBXNativeTarget "FlacCueIntegrationTests" */ = {
 			isa = XCConfigurationList;
@@ -562,6 +584,7 @@
 				67E00B7E1C4D8B7700BA13DA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

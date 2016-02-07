@@ -16,11 +16,11 @@
 #include <boost/optional.hpp>
 
 namespace cue {
-using namespace std;
 using namespace boost;
     
 int const CdFramesPerSecond = 75;
 int const CdSamplesPerFrame = 588;
+int const CdSamplesPerSecond = CdFramesPerSecond * CdSamplesPerFrame;
     
 struct Time {
     long long samples;
@@ -40,89 +40,140 @@ struct Time {
         auto minutes = seconds / 60;
         frames -= seconds * CdFramesPerSecond;
         seconds -= minutes * 60;
-        return make_tuple(minutes, seconds, frames);
+        return std::make_tuple(minutes, seconds, frames);
     }
     
-    bool operator<(const Time& time) const {
-        return samples < time.samples;
-    }
+    bool operator<(const Time& time) const { return samples < time.samples; }
+    bool operator>(const Time& time) const { return time < *this; }
+    bool operator==(const Time& time) const { return !(time < *this || time > *this); }
     
-    bool operator>(const Time& time) const {
-        return time < *this;
-    }
-    
-    bool operator==(const Time& time) const {
-        return !(time < *this || time > *this);
-    }
+    Time operator+(const Time& time) const { return samples + time.samples; }
+    Time operator-(const Time& time) const { return samples - time.samples; }
 };
     
-ostream& operator<<(ostream& o, const Time& t);
+std::ostream& operator<<(std::ostream& o, const Time& t);
     
-struct File {
-    string path;
-    string fileType;
+class File {
+public:
+    std::string path;
+    std::string fileType;
 };
-
-struct Source {
-    int file;
+    
+class Disc;
+class Track;
+class Index;
+    
+class Index {
+    friend class Track;
+    int _file;
+    Disc* _disc;
+public:
+    File& file() const;
+    void setFile(const File& file);
     Time begin;
-    optional<Time> end;
-};
-    
-struct Index {
     int index;
-    vector<Source> sources;
-    vector<string> comments;
+    std::vector<std::string> comments;
 };
 
-struct Track {
-    string dataType;
+class Track {
+    friend class Disc;
+    using IndexCollection = std::vector<Index>;
+    
+    IndexCollection _indexes;
+    Disc* _disc;
+public:
+    using IndexIterator = IndexCollection::iterator;
+    using ConstIndexIterator = IndexCollection::const_iterator;
+    
+    std::string dataType;
     int number;
-    optional<string> performer;
-    optional<string> title;
-    optional<string> songwriter;
-    optional<string> isrc;
-    optional<string> flags;
+    optional<std::string> performer;
+    optional<std::string> title;
+    optional<std::string> songwriter;
+    optional<std::string> isrc;
+    optional<std::string> flags;
     optional<Time> pregap;
     optional<Time> postgap;
-    vector<Index> indexes;
-    vector<string> comments;
+    std::vector<std::string> comments;
+    
+    IndexIterator indexesBegin() { return _indexes.begin(); }
+    IndexIterator indexesEnd() { return _indexes.end(); }
+    ConstIndexIterator indexesCbegin() const { return _indexes.cbegin(); }
+    ConstIndexIterator indexesCend() const { return _indexes.cend(); }
+    Index& addIndex() {
+        _indexes.push_back(Index());
+        auto result = _indexes.rbegin();
+        result->_disc = _disc;
+        return *result;
+    }
 };
 
-class ParseError : public runtime_error {
+class ParseError : public std::runtime_error {
     using runtime_error::runtime_error;
 };
     
-struct Disc {
-    vector<File> files;
-    vector<string> comments;
-    optional<string> catalog;
-    optional<string> cdTextFile;
-    optional<string> performer;
-    optional<string> title;
-    optional<string> songwriter;
-    vector<Track> tracks;
+class Disc {
+    using TrackCollection = std::vector<Track>;
+    using FileCollection = std::vector<File>;
+    
+    TrackCollection _tracks;
+    FileCollection _files;
+public:
+    using FileIterator = FileCollection::iterator;
+    using ConstFileIterator = FileCollection::const_iterator;
+    using TrackIterator = TrackCollection::iterator;
+    using ConstTrackIterator = TrackCollection::const_iterator;
+    
+    std::vector<std::string> comments;
+    optional<std::string> catalog;
+    optional<std::string> cdTextFile;
+    optional<std::string> performer;
+    optional<std::string> title;
+    optional<std::string> songwriter;
+    
+    Disc(std::istream& input) throw(ParseError);
     
     Disc() = default;
-    Disc(istream& input) throw(ParseError);
+    Disc(const Disc& disc) = delete;
+    Disc& operator=(const Disc& disc) = delete;
+    
+    TrackIterator tracksBegin() { return _tracks.begin(); }
+    TrackIterator tracksEnd() { return _tracks.end(); }
+    ConstTrackIterator tracksCbegin() const { return _tracks.cbegin(); }
+    ConstTrackIterator tracksCend() const { return _tracks.cend(); }
+    Track& addTrack() {
+        _tracks.push_back(Track());
+        auto result = _tracks.rbegin();
+        result->_disc = this;
+        return *result;
+    }
+    
+    FileIterator filesBegin() { return _files.begin(); }
+    FileIterator filesEnd() { return _files.end(); }
+    ConstFileIterator filesCbegin() const { return _files.cbegin(); }
+    ConstFileIterator filesCend() const { return _files.cend(); }
+    File& addFile() {
+        _files.push_back(File());
+        return *_files.rbegin();
+    }
 };
     
-ostream& operator<<(ostream& o, const Disc& disc);
+std::ostream& operator<<(std::ostream& o, const Disc& disc);
 
 struct SplitInputSegment {
-    string inputFile;
+    std::string inputFile;
     Time begin;
     optional<Time> end;
 };
     
 struct SplitOutput {
-    string outputFile;
-    vector<SplitInputSegment> inputSegments;
+    std::string outputFile;
+    std::vector<SplitInputSegment> inputSegments;
 };
 
 struct Split {
-    vector<SplitOutput> outputFiles;
-    Disc outputSheet;
+    std::vector<SplitOutput> outputFiles;
+    std::shared_ptr<Disc> outputSheet;
 };
     
 class SplitGenerator {
@@ -132,6 +183,18 @@ public:
     
 class GapsAppendedSplitGenerator : public SplitGenerator {
 public:
+    using OutputFileNameHandler = std::function<std::string(const optional<const Track&> track)>; // boost::none means HTOA
+    using InputFileDurationHandler = std::function<Time(const std::string& fileName)>;
+    
+private:
+    OutputFileNameHandler _outputFileNameHandler;
+    InputFileDurationHandler _inputFileDurationHandler;
+    
+public:
+    GapsAppendedSplitGenerator(OutputFileNameHandler outputFileNameHandler, InputFileDurationHandler inputFileDurationHandler)
+    : _outputFileNameHandler(outputFileNameHandler)
+    , _inputFileDurationHandler(inputFileDurationHandler) {}
+    
     virtual Split split(const Disc& disc) const override;
 };
     

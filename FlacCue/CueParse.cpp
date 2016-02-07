@@ -25,7 +25,7 @@ extern "C" {
 namespace cue {
 
 struct CueParserReadCallbackContext {
-    istream& input;
+    std::istream& input;
     bool didReturnNewlineAfterEOF; // hack b/c FLEX handles <<EOF>> in a shitty way
 };
     
@@ -46,15 +46,24 @@ static int CueParserReadCallback(void * context, void * buffer, int maxSize) {
     }
 }
     
-ostream& operator<<(ostream& o, const Time& t) {
+std::ostream& operator<<(std::ostream& o, const Time& t) {
     auto components = t.cueTime();
     return o
-    << setfill('0') << setw(2) << get<0>(components) << ':'
-    << setfill('0') << setw(2) << get<1>(components) << ':'
-    << setfill('0') << setw(2) << get<2>(components);
+    << std::setfill('0') << std::setw(2) << std::get<0>(components) << ':'
+    << std::setfill('0') << std::setw(2) << std::get<1>(components) << ':'
+    << std::setfill('0') << std::setw(2) << std::get<2>(components);
 }
     
-Disc::Disc(istream& input) throw(ParseError) {
+    
+File& Index::file() const {
+    return *(_disc->filesBegin() + _file);
+}
+
+void Index::setFile(const File& file) {
+    _file = static_cast<int>(&file - &(*_disc->filesBegin()));
+}
+    
+Disc::Disc(std::istream& input) throw(ParseError) {
     
     struct CueCommandList result;
     CueCommandListInit(&result);
@@ -74,113 +83,89 @@ Disc::Disc(istream& input) throw(ParseError) {
     if (status == 0) {
         CueCommandListItem* item = result.head;
         
-        Index* lastIndex = nullptr;
-        
         while (item != NULL) {
             auto command = item->command;
             switch (command.type) {
-                case CueCommandTypeCatalog: this->catalog = command.catalog; break;
-                case CueCommandTypeCdTextFile: this->cdTextFile = command.cdTextFile; break;
+                case CueCommandTypeCatalog: catalog = command.catalog; break;
+                case CueCommandTypeCdTextFile: cdTextFile = command.cdTextFile; break;
                 case CueCommandTypeFile: {
-                    this->files.push_back(File());
-                    auto& file = *this->files.rbegin();
+                    auto& file = addFile();
                     file.path = command.file.path;
                     file.fileType = command.file.fileType;
-                    
-                    if (lastIndex != nullptr) {
-                        lastIndex->sources.rbegin()->end = none;
-                        
-                        Source source;
-                        source.file = (int)this->files.size() - 1;
-                        source.begin = 0;
-                        source.end = none;
-                        
-                        lastIndex->sources.push_back(source);
-                    }
                 } break;
                 case CueCommandTypeFlags: {
-                    if (this->tracks.size() == 0) {
+                    if (tracksBegin() == tracksEnd()) {
                         throw ParseError("FLAGS must be used within a TRACK!");
                     }
-                    this->tracks.rbegin()->flags = command.flags;
+                    (tracksEnd() - 1)->flags = command.flags;
                 } break;
                 case CueCommandTypeIndex: {
-                    if (this->files.size() == 0) {
+                    if (filesBegin() == filesEnd()) {
                         throw ParseError("INDEX can only be used after specifying a FILE!");
                     }
                     auto time = Time(command.index.time.minutes, command.index.time.seconds, command.index.time.frames);
-                    if (lastIndex != nullptr) {
-                        lastIndex->sources.rbegin()->end = time;
-                        if (lastIndex->sources.rbegin()->begin == lastIndex->sources.rbegin()->end) {
-                            lastIndex->sources.pop_back();
-                        }
-                    }
                     
-                    Source source;
-                    source.file = (int)this->files.size() - 1;
-                    source.begin = time;
-                    source.end = none;
-                    
-                    this->tracks.rbegin()->indexes.push_back(Index());
-                    auto& index = *(this->tracks.rbegin()->indexes.rbegin());
+                    auto& index = (tracksEnd() - 1)->addIndex();
                     index.index = command.index.index;
-                    index.sources.push_back(source);
-                    
-                    lastIndex = &index;
+                    index.begin = time;
+                    index.setFile(*(filesEnd() - 1));
                 } break;
                 case CueCommandTypeIsrc: {
-                    if (this->tracks.size() == 0) {
+                    if (tracksBegin() == tracksEnd()) {
                         throw ParseError("ISRC must be used within a TRACK!");
                     }
-                    this->tracks.rbegin()->isrc = command.isrc;
+                    (tracksEnd() - 1)->isrc = command.isrc;
                 } break;
                 case CueCommandTypePerformer:  {
-                    if (this->tracks.size() == 0) {
-                        this->performer = command.performer;
+                    if (tracksBegin() == tracksEnd()) {
+                        performer = command.performer;
                     } else {
-                        this->tracks.rbegin()->performer = command.performer;
+                        (tracksEnd() - 1)->performer = command.performer;
                     }
                 } break;
                 case CueCommandTypePostgap: {
-                    if (this->tracks.size() == 0) {
+                    if (tracksBegin() == tracksEnd()) {
                         throw ParseError("POSTGAP must be used within a TRACK!");
                     }
-                    this->tracks.rbegin()->postgap = Time(command.postGap.minutes, command.postGap.seconds, command.postGap.frames);
+                    (tracksEnd() - 1)->postgap = Time(command.postGap.minutes, command.postGap.seconds, command.postGap.frames);
                 } break;
                 case CueCommandTypePregap: {
-                    if (this->tracks.size() == 0) {
+                    if (tracksBegin() == tracksEnd()) {
                         throw ParseError("PREGAP must be used within a TRACK!");
                     }
-                    this->tracks.rbegin()->pregap = Time(command.preGap.minutes, command.preGap.seconds, command.preGap.frames);
+                    (tracksEnd() - 1)->pregap = Time(command.preGap.minutes, command.preGap.seconds, command.preGap.frames);
                 } break;
                 case CueCommandTypeRem: {
-                    if (this->tracks.size() == 0) {
-                        this->comments.push_back(command.rem);
-                    } else if (this->tracks.rbegin()->indexes.size() == 0) {
-                        this->tracks.rbegin()->comments.push_back(command.rem);
+                    if (tracksBegin() == tracksEnd()) {
+                        comments.push_back(command.rem);
                     } else {
-                        this->tracks.rbegin()->indexes.rbegin()->comments.push_back(command.rem);
+                        auto& lastTrack = *(tracksEnd() - 1);
+                        if (lastTrack.indexesBegin() == lastTrack.indexesEnd()) {
+                            lastTrack.comments.push_back(command.rem);
+                        } else {
+                            auto& lastIndex = *(lastTrack.indexesEnd() - 1);
+                            lastIndex.comments.push_back(command.rem);
+                        }
                     }
                 } break;
                 case CueCommandTypeSongwriter: {
-                    if (this->tracks.size() == 0) {
-                        this->songwriter = command.songwriter;
+                    if (tracksBegin() == tracksEnd()) {
+                        songwriter = command.songwriter;
                     } else {
-                        this->tracks.rbegin()->songwriter = command.songwriter;
+                        (tracksEnd() - 1)->songwriter = command.songwriter;
                     }
                 } break;
                 case CueCommandTypeTitle: {
-                    if (this->tracks.size() == 0) {
-                        this->title = command.title;
+                    if (tracksBegin() == tracksEnd()) {
+                        title = command.title;
                     } else {
-                        this->tracks.rbegin()->title = command.title;
+                        (tracksEnd() - 1)->title = command.title;
                     }
                 } break;
                 case CueCommandTypeTrack: {
-                    Track track;
+                    auto& track = addTrack();
                     track.number = command.track.number;
                     track.dataType = command.track.dataType;
-                    this->tracks.push_back(track);
                 } break;
             }
             item = item->next;
@@ -188,97 +173,82 @@ Disc::Disc(istream& input) throw(ParseError) {
         CueCommandListDestroy(&result);
     } else {
         CueCommandListDestroy(&result);
-        string errorString(error);
+        std::string errorString(error);
         free(error);
         throw ParseError(errorString);
     }
 }
-    
-static string escape(const string& s) {
+
+static std::string escape(const std::string& s) {
     auto result = s;
     replace_all(result, "\"", "\\\"");
     return '"' + result + '"';
 }
     
-ostream& operator<<(ostream& o, const Disc& disc) {
+std::ostream& operator<<(std::ostream& o, const Disc& disc) {
     for (auto comment : disc.comments) {
-        o << "REM " << comment << endl;
+        o << "REM " << comment << std::endl;
     }
     if (disc.cdTextFile) {
-        o << "CDTEXTFILE " << escape(disc.cdTextFile.value()) << endl;
+        o << "CDTEXTFILE " << escape(disc.cdTextFile.value()) << std::endl;
     }
     if (disc.catalog) {
-        o << "CATALOG " << disc.catalog.value() << endl;
+        o << "CATALOG " << disc.catalog.value() << std::endl;
     }
     if (disc.performer) {
-        o << "PERFORMER " << escape(disc.performer.value()) << endl;
+        o << "PERFORMER " << escape(disc.performer.value()) << std::endl;
     }
     if (disc.songwriter) {
-        o << "SONGWRITER " << escape(disc.songwriter.value()) << endl;
+        o << "SONGWRITER " << escape(disc.songwriter.value()) << std::endl;
     }
     if (disc.title) {
-        o << "TITLE " << escape(disc.title.value()) << endl;
+        o << "TITLE " << escape(disc.title.value()) << std::endl;
     }
     
     File const * currentFile = nullptr;
-    for (auto track : disc.tracks) {
-        if (currentFile == nullptr) {
-            currentFile = &disc.files[track.indexes.begin()->sources.begin()->file];
-            o << "FILE " << escape(currentFile->path) << " " << currentFile->fileType << endl;
+    for (auto track = disc.tracksCbegin(); track != disc.tracksCend(); ++track) {
+        auto firstIndexFile = &track->indexesCbegin()->file();
+        if (currentFile != firstIndexFile) {
+            currentFile = firstIndexFile;
+            o << "FILE " << escape(currentFile->path) << " " << currentFile->fileType << std::endl;
         }
         
-        o << "  TRACK " << io::group(setw(2), setfill('0'), track.number) << " " << track.dataType << endl;
+        o << "  TRACK " << io::group(std::setw(2), std::setfill('0'), track->number) << " " << track->dataType << std::endl;
         
-        for (auto comment : track.comments) {
-            o << "    REM " << comment << endl;
+        for (auto comment : track->comments) {
+            o << "    REM " << comment << std::endl;
         }
-        if (track.performer) {
-            o << "    PERFORMER " << escape(track.performer.value()) << endl;
+        if (track->performer) {
+            o << "    PERFORMER " << escape(track->performer.value()) << std::endl;
         }
-        if (track.songwriter) {
-            o << "    SONGWRITER " << escape(track.songwriter.value()) << endl;
+        if (track->songwriter) {
+            o << "    SONGWRITER " << escape(track->songwriter.value()) << std::endl;
         }
-        if (track.title) {
-            o << "    TITLE " << escape(track.title.value()) << endl;
+        if (track->title) {
+            o << "    TITLE " << escape(track->title.value()) << std::endl;
         }
-        if (track.isrc) {
-            o << "    ISRC " << track.isrc.value() << endl;
+        if (track->isrc) {
+            o << "    ISRC " << track->isrc.value() << std::endl;
         }
-        if (track.flags) {
-            o << "    FLAGS " << track.flags.value() << endl;
+        if (track->flags) {
+            o << "    FLAGS " << track->flags.value() << std::endl;
         }
-        if (track.pregap) {
-            o << "    PREGAP " << track.pregap.value() << endl;
+        if (track->pregap) {
+            o << "    PREGAP " << track->pregap.value() << std::endl;
         }
-        if (track.postgap) {
-            o << "    POSTGAP " << track.postgap.value() << endl;
+        if (track->postgap) {
+            o << "    POSTGAP " << track->postgap.value() << std::endl;
         }
         
-        for (auto index : track.indexes) {
-            auto currentSource = *index.sources.begin();
-            if (currentFile == nullptr) {
-                currentFile = &disc.files[currentSource.file];
-                o << "FILE " << escape(currentFile->path) << " " << currentFile->fileType << endl;
+        for (auto index = track->indexesCbegin(); index != track->indexesCend(); ++index) {
+            if (currentFile != &index->file()) {
+                currentFile = &index->file();
+                o << "FILE " << escape(currentFile->path) << " " << currentFile->fileType << std::endl;
             }
-            o << "    INDEX " << io::group(setw(2), setfill('0'), index.index) << " " << currentSource.begin << endl;
+            o << "    INDEX " << io::group(std::setw(2), std::setfill('0'), index->index) << " " << index->begin << std::endl;
             
-            for (auto comment : index.comments) {
-                o << "      REM " << comment << endl;
-            }
-            
-            if (currentSource.end == none) {
-                currentFile = nullptr;
-            }
-            
-            for (auto source = index.sources.begin() + 1; source != index.sources.end(); ++source) {
-                assert(currentSource.end == none);
-                currentSource = *source;
-                assert(currentSource.begin == 0);
-                currentFile = &disc.files[currentSource.file];
-                o << "FILE " << escape(currentFile->path) << " " << currentFile->fileType << endl;
-                if (currentSource.end == none) {
-                    currentFile = nullptr;
-                }
+            for (auto comment : index->comments) {
+                o << "      REM " << comment << std::endl;
             }
         }
     }
@@ -287,133 +257,153 @@ ostream& operator<<(ostream& o, const Disc& disc) {
     
 Split GapsAppendedSplitGenerator::split(const cue::Disc &disc) const {
     Split result;
+    result.outputSheet = std::make_shared<Disc>();
+    result.outputSheet->comments = disc.comments;
+    result.outputSheet->catalog = disc.catalog;
+    result.outputSheet->cdTextFile = disc.cdTextFile;
+    result.outputSheet->performer = disc.performer;
+    result.outputSheet->title = disc.title;
+    result.outputSheet->songwriter = disc.songwriter;
     
-    int maxTrackNumber = max_element(disc.tracks.begin(), disc.tracks.end(), [](const Track& a, const Track& b) {
-        return a.number < b.number;
-    })->number;
-    int trackNumberDigits = (int)ceil(log10(maxTrackNumber));
+    auto firstTrack = disc.tracksCbegin();
+    if (firstTrack == disc.tracksCend()) {
+        return result;
+    }
     
-    auto firstTrack = disc.tracks[0];
-    bool hasHTOA = firstTrack.indexes.begin()->index == 0;
+    bool hasHTOA = firstTrack->indexesCbegin()->index == 0;
     if (hasHTOA) {
-        auto htoaIndex = *firstTrack.indexes.begin();
+        auto htoaIndex = firstTrack->indexesCbegin();
+        auto& file = htoaIndex->file();
+        auto nextIndex = htoaIndex + 1;
+        auto nextIndexUsesTheSameFile = &nextIndex->file() == &file;
         
-        string path = "00 - HTOA.flac";
+        SplitInputSegment inputSegment;
+        inputSegment.inputFile = file.path;
+        inputSegment.begin = htoaIndex->begin;
+        if (nextIndexUsesTheSameFile) {
+            inputSegment.end = nextIndex->begin;
+        } else {
+            inputSegment.end = none;
+        }
         
         SplitOutput htoa;
-        htoa.outputFile = path;
-        for (auto source : htoaIndex.sources) {
-            auto file = disc.files[source.file];
-            
-            SplitInputSegment inputSegment;
-            inputSegment.inputFile = file.path;
-            inputSegment.begin = source.begin;
-            inputSegment.end = source.end;
-            
-            htoa.inputSegments.push_back(inputSegment);
-        }
+        htoa.outputFile = _outputFileNameHandler(none);
+        htoa.inputSegments.push_back(inputSegment);
         
         result.outputFiles.push_back(htoa);
         
-        File outputSheetFile;
-        outputSheetFile.path = path;
+        auto& outputSheetTrack = result.outputSheet->addTrack();
+        outputSheetTrack.comments = firstTrack->comments;
+        outputSheetTrack.dataType = firstTrack->dataType;
+        outputSheetTrack.flags = firstTrack->flags;
+        outputSheetTrack.isrc = firstTrack->isrc;
+        outputSheetTrack.number = firstTrack->number;
+        outputSheetTrack.performer = firstTrack->performer;
+        outputSheetTrack.songwriter = firstTrack->songwriter;
+        outputSheetTrack.title = firstTrack->title;
+        
+        auto& outputSheetFile = result.outputSheet->addFile();
+        outputSheetFile.path = htoa.outputFile;
         outputSheetFile.fileType = "WAVE";
-        result.outputSheet.files.push_back(outputSheetFile);
         
-        Source outputSheetSource;
-        outputSheetSource.file = result.outputSheet.files.size() - 1;
-        outputSheetSource.begin = Time(0,0,0);
-        outputSheetSource.end = none;
-        
-        Index outputSheetIndex;
-        outputSheetIndex.comments = htoaIndex.comments;
-        outputSheetIndex.index = htoaIndex.index;
-        outputSheetIndex.sources.push_back(outputSheetSource);
-        
-        Track outputSheetTrack;
-        outputSheetTrack.comments = firstTrack.comments;
-        outputSheetTrack.dataType = firstTrack.dataType;
-        outputSheetTrack.flags = firstTrack.flags;
-        outputSheetTrack.isrc = firstTrack.isrc;
-        outputSheetTrack.number = firstTrack.number;
-        outputSheetTrack.performer = firstTrack.performer;
-        outputSheetTrack.songwriter = firstTrack.songwriter;
-        outputSheetTrack.title = firstTrack.title;
-        outputSheetTrack.indexes.push_back(outputSheetIndex);
-        
-        result.outputSheet.tracks.push_back(outputSheetTrack);
+        auto& outputSheetIndex = outputSheetTrack.addIndex();
+        outputSheetIndex.comments = htoaIndex->comments;
+        outputSheetIndex.index = htoaIndex->index;
+        outputSheetIndex.setFile(outputSheetFile);
+        outputSheetIndex.begin = 0;
     }
     
-    for (int i = 0; i < disc.tracks.size(); i++) {
-        auto track = disc.tracks[i];
-        
+    for (auto track = firstTrack; track != disc.tracksCend(); ++track) {
         SplitOutput currentOutput;
+        currentOutput.outputFile = _outputFileNameHandler(*track);
         
-        string artist = track.performer.value_or(track.songwriter.value_or(disc.performer.value_or(disc.songwriter.value_or(""))));
-        string title = track.title.value_or("");
-        string path = (format("%1% - %2% - %3%.flac")
-                       % io::group(setw(trackNumberDigits), setfill('0'), track.number)
-                       % artist
-                       % title).str();
-        currentOutput.outputFile = path;
-        
-        File outputSheetFile;
-        outputSheetFile.path = path;
+        auto& outputSheetFile = result.outputSheet->addFile();
+        outputSheetFile.path = currentOutput.outputFile;
         outputSheetFile.fileType = "WAVE";
-        result.outputSheet.files.push_back(outputSheetFile);
         
-        if (result.outputSheet.tracks.empty() || result.outputSheet.tracks.rbegin()->number != track.number) {
-            Track outputSheetTrack;
-            outputSheetTrack.comments = track.comments;
-            outputSheetTrack.dataType = track.dataType;
-            outputSheetTrack.flags = track.flags;
-            outputSheetTrack.isrc = track.isrc;
-            outputSheetTrack.number = track.number;
-            outputSheetTrack.performer = track.performer;
-            outputSheetTrack.songwriter = track.songwriter;
-            outputSheetTrack.title = track.title;
-            result.outputSheet.tracks.push_back(outputSheetTrack);
+        auto outputSheetHasNoTracks = result.outputSheet->tracksBegin() == result.outputSheet->tracksEnd();
+        if (outputSheetHasNoTracks || (result.outputSheet->tracksEnd() - 1)->number != track->number) {
+            auto& outputSheetTrack = result.outputSheet->addTrack();
+            outputSheetTrack.comments = track->comments;
+            outputSheetTrack.dataType = track->dataType;
+            outputSheetTrack.flags = track->flags;
+            outputSheetTrack.isrc = track->isrc;
+            outputSheetTrack.number = track->number;
+            outputSheetTrack.performer = track->performer;
+            outputSheetTrack.songwriter = track->songwriter;
+            outputSheetTrack.title = track->title;
         }
         
-        bool hasNextTrack = i + 1 < disc.tracks.size();
+        bool hasNextTrack = (track + 1) != disc.tracksCend();
         
-        for (int j = 0; j < track.indexes.size() + 1; j++) {
-            Index index; kell a szamok hossza is...
+        for (auto index = track->indexesCbegin(); ; ++index) {
             
             bool isNextTracksZeroIndex = false;
-            if (j < track.indexes.size()) {
-                index = track.indexes[j];
-            } else {
-                bool nextTrackHasZeroIndex =
-                    j == track.indexes.size() &&
-                    hasNextTrack &&
-                    disc.tracks[i + 1].indexes[0].index == 0;
-                
-                if (nextTrackHasZeroIndex) {
-                    index = disc.tracks[i + 1].indexes[0];
-                    isNextTracksZeroIndex = true;
+            if (index == track->indexesCend()) {
+                if (hasNextTrack) {
+                    auto nextTrack = track + 1;
+                    auto firstIndexOfNextTrack = nextTrack->indexesCbegin();
+                    if (firstIndexOfNextTrack->index == 0) {
+                        index = firstIndexOfNextTrack;
+                        isNextTracksZeroIndex = true;
+                        auto& outputSheetTrack = result.outputSheet->addTrack();
+                        outputSheetTrack.comments = nextTrack->comments;
+                        outputSheetTrack.dataType = nextTrack->dataType;
+                        outputSheetTrack.flags = nextTrack->flags;
+                        outputSheetTrack.isrc = nextTrack->isrc;
+                        outputSheetTrack.number = nextTrack->number;
+                        outputSheetTrack.performer = nextTrack->performer;
+                        outputSheetTrack.songwriter = nextTrack->songwriter;
+                        outputSheetTrack.title = nextTrack->title;
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
                 }
             }
             
-            if (index.index == 0 && !isNextTracksZeroIndex) {
+            if (index->index == 0 && !isNextTracksZeroIndex) {
                 continue;
             }
             
-            for (auto source : index.sources) {
-                auto sourceFile = disc.files[source.file];
-                
-                SplitInputSegment inputSegment;
-                inputSegment.inputFile = sourceFile.path;
-                inputSegment.begin = source.begin;
-                inputSegment.end = source.end;
-                
-                currentOutput.inputSegments.push_back(inputSegment);
+            auto& file = index->file();
+            
+            SplitInputSegment inputSegment;
+            inputSegment.inputFile = file.path;
+            inputSegment.begin = index->begin;
+            inputSegment.end = none;
+            if (isNextTracksZeroIndex || (index + 1) != track->indexesCend()) {
+                auto nextIndex = index + 1;
+                if (&nextIndex->file() == &file) {
+                    inputSegment.end = nextIndex->begin;
+                }
+            } else if ((track + 1) != disc.tracksCend()) {
+                auto nextTrack = track + 1;
+                auto nextTracksFirstIndex = nextTrack->indexesCbegin();
+                if (&nextTracksFirstIndex->file() == &file) {
+                    inputSegment.end = nextTracksFirstIndex->begin;
+                }
+            }
+            
+            auto& outputSheetIndex = (result.outputSheet->tracksEnd() - 1)->addIndex();
+            outputSheetIndex.comments = index->comments;
+            outputSheetIndex.index = index->index;
+            outputSheetIndex.setFile(outputSheetFile);
+            outputSheetIndex.begin = 0;
+            for (auto inputSegment : currentOutput.inputSegments) {
+                outputSheetIndex.begin = outputSheetIndex.begin + (inputSegment.end.value_or(_inputFileDurationHandler(inputSegment.inputFile)) - inputSegment.begin);
+            }
+            
+            currentOutput.inputSegments.push_back(inputSegment);
+            
+            if (isNextTracksZeroIndex) {
+                break;
             }
         }
         
         result.outputFiles.push_back(currentOutput);
     }
-    
     
     return result;
 }

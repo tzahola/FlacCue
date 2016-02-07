@@ -9,6 +9,7 @@
 #ifndef FlacCue_h
 #define FlacCue_h
 
+#include "AccurateRip.hpp"
 #include "CueParse.hpp"
 
 #endif /* FlacCue_h */
