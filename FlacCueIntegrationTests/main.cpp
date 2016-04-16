@@ -182,6 +182,7 @@ int main(int argc, const char * argv[]) {
             index.setFile(file);
         }
     } else {
+        std::cerr << "Unknown file: " << path << std::endl;
         abort();
     }
     
@@ -205,7 +206,7 @@ int main(int argc, const char * argv[]) {
         inputFileLengths[file.path] = readFileLength(cueDir + "/" + file.path);
     });
     
-    accuraterip::TOC toc;
+    std::vector<cue::Time> trackOffsets;
     cue::File const* currentFile = nullptr;
     cue::Time currentFileBeginTime = 0;
     for_each(disc->tracksCbegin(), disc->tracksCend(), [&](const cue::Track& track) {
@@ -215,12 +216,13 @@ int main(int argc, const char * argv[]) {
                 currentFile = &index.file();
             }
             if (index.index == 1) {
-                toc.push_back(currentFileBeginTime + index.begin);
+                trackOffsets.push_back(currentFileBeginTime + index.begin);
             }
         });
     });
-    toc.push_back(currentFileBeginTime + inputFileLengths[currentFile->path]);
+    trackOffsets.push_back(currentFileBeginTime + inputFileLengths[currentFile->path]);
     
+    auto toc = accuraterip::TableOfContents::CreateFromTrackOffsets(trackOffsets);
     accuraterip::ChecksumGenerator checksumGenerator(toc);
     
     cue::GapsAppendedSplitGenerator splitter([&](const boost::optional<const cue::Track&> track) -> std::string {
@@ -240,6 +242,7 @@ int main(int argc, const char * argv[]) {
     
     auto split = splitter.split(*disc);
     
+    bool hasHTOA = disc->tracksCbegin()->indexesCbegin()->index == 0;
     for (auto i = 0; i < split.outputFiles.size(); ++i) {
         auto outputFile = split.outputFiles[i];
         
@@ -261,8 +264,11 @@ int main(int argc, const char * argv[]) {
                 auto samplesToBeWritten = std::min<long>(remainingSamples, frame->header.blocksize);
 //                currentDestinationWriter.process(buffer, (unsigned int)samplesToBeWritten);
                 
-                checksumGenerator.processSamples(buffer, (uint32_t)samplesToBeWritten);
-                static_assert(sizeof(FLAC__int32) == sizeof(uint32_t), "");
+                if (!hasHTOA || i > 0) {
+                    checksumGenerator.processSamples(buffer, (uint32_t)samplesToBeWritten);
+                }
+                
+                static_assert(sizeof(FLAC__int32) == sizeof(int32_t), "");
                 
                 remainingSamples -= samplesToBeWritten;
                 return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
@@ -284,76 +290,68 @@ int main(int argc, const char * argv[]) {
 //    cueOutput << split.outputSheet;
 //    cueOutput.close();
     
-    std::cout << "Downloading " << checksumGenerator.accurateRipDataURL << " ..." << std::endl;
-    std::stringstream downloadedData(std::stringstream::in | std::stringstream::out | std::stringstream::binary);
-    std::stringstream downloadedHeaders(std::stringstream::in | std::stringstream::out | std::stringstream::binary);
-    CURLDownloader downloader(checksumGenerator.accurateRipDataURL, [&](void const * buffer, size_t size, size_t count) -> size_t {
-        downloadedData.write((const char*)buffer, size * count);
-        return downloadedData.bad() ? 0 : count;
-    }, [&](void const * buffer, size_t size, size_t count) -> size_t {
-        downloadedHeaders.write((const char*)buffer, size * count);
-        return downloadedHeaders.bad() ? 0 : count;
-    });
-    auto statusCode = downloader.perform();
-    if (statusCode != 200) {
-        std::cout
-        << "Failed to download AccurateRip data!"
-        << std::endl
-        << downloadedHeaders.str()
-        << std::endl;
-        abort();
-    } else {
-        std::cout << "Downloaded successfully." << std::endl;
-    }
+//    std::cout << "Downloading " << checksumGenerator.accurateRipDataURL << " ..." << std::endl;
+//    std::stringstream downloadedData(std::stringstream::in | std::stringstream::out | std::stringstream::binary);
+//    std::stringstream downloadedHeaders(std::stringstream::in | std::stringstream::out | std::stringstream::binary);
+//    CURLDownloader downloader(checksumGenerator.accurateRipDataURL, [&](void const * buffer, size_t size, size_t count) -> size_t {
+//        downloadedData.write((const char*)buffer, size * count);
+//        return downloadedData.bad() ? 0 : count;
+//    }, [&](void const * buffer, size_t size, size_t count) -> size_t {
+//        downloadedHeaders.write((const char*)buffer, size * count);
+//        return downloadedHeaders.bad() ? 0 : count;
+//    });
+//    auto statusCode = downloader.perform();
     
-    accuraterip::Data arData(downloadedData);
+    std::unique_ptr<accuraterip::Data> arData = nullptr;
     
-    std::cout << " #     V1       V2    Results:" << std::endl;
-    for (auto i = 0; i < checksumGenerator.v1Checksums.size(); ++i) {
+//    if (statusCode != 200) {
+//        std::cout
+//        << "Failed to download AccurateRip data!"
+//        << std::endl
+//        << downloadedHeaders.str()
+//        << std::endl;
+//    } else {
+//        std::cout << "Downloaded successfully." << std::endl;
+//        arData.reset(new accuraterip::Data(downloadedData));
+//    }
+    
+    std::cout << " #     V1    Results:" << std::endl;
+    for (auto i = 0; i < trackOffsets.size() - 1; ++i) {
         std::cout << (boost::format("%1%: ") % boost::io::group(std::setw(2), std::setfill('0'), i + 1)).str();
-        
-        auto arCrcV1 = checksumGenerator.v1Checksums[i];
-        auto arCrcV2 = checksumGenerator.v2Checksums[i];
         
         std::ios::fmtflags flags = std::cout.flags();
         {
             std::cout
-            << boost::io::group(std::setw(8), std::setfill('0'), std::setbase(16), arCrcV1) << " "
-            << boost::io::group(std::setw(8), std::setfill('0'), std::setbase(16), arCrcV2) << " ";
+            << boost::io::group(std::setw(8), std::setfill('0'), std::setbase(16), checksumGenerator.v1ChecksumWithOffset(i, 0)) << " ";
         }
         std::cout.flags(flags);
         
-        bool didMatchAnyChecksum = false;
-        bool didMatchAnyOffset = false;
-        for (auto j = 0; j < arData.discs.size(); ++j) {
-            if (arCrcV1 == arData.discs[j].tracks[i].crc) {
-                didMatchAnyChecksum = true;
-                std::cout << (boost::format("V1(disc=%1%, count=%2%)") % j % arData.discs[j].tracks[i].count).str() << " ";
-            }
-            if (arCrcV2 == arData.discs[j].tracks[i].crc) {
-                didMatchAnyChecksum = true;
-                std::cout << (boost::format("V2(disc=%1%, count=%2%)") % j % arData.discs[j].tracks[i].count).str() << " ";
-            }
-            
-            for (auto offset = accuraterip::OffsetFindingMinimumOffset; offset <= accuraterip::OffsetFindingMaximumOffset; ++offset) {
-                if (checksumGenerator.v1Frame450ChecksumWithOffset(i, offset) == arData.discs[j].tracks[i].frame450CRC) {
-                    didMatchAnyOffset = true;
-                    std::cout
-                    << (boost::format("V1_Frame450(offset=%1%, disc=%2%, count=%3%)")
-                        % offset
-                        % j
-                        % arData.discs[j].tracks[i].count).str()
-                    << " ";
+        if (arData != nullptr) {
+            bool isOK = false;
+            bool canBeCorrectedViaOffset = false;
+            for (auto j = 0; j < arData->discs.size(); ++j) {
+                auto arTrack = arData->discs[j].tracks[i];
+                if (arTrack.crc == checksumGenerator.v1ChecksumWithOffset(i, 0)) {
+                    std::cout << "V1(disc=" << j << ",count=" << arTrack.count << ") ";
+                    isOK = true;
+                } else {
+                    for (auto offset = accuraterip::MinimumOffset; offset <= accuraterip::MaximumOffset; ++offset) {
+                        if (arTrack.crc == checksumGenerator.v1ChecksumWithOffset(i, offset)) {
+                            std::cout << "V1(disc=" << j << ",count=" << arTrack.count << ",offset=" << offset << ") ";
+                            canBeCorrectedViaOffset = true;
+                        }
+                    }
                 }
             }
+            if (isOK) {
+                std::cout << "OK";
+            } else if (canBeCorrectedViaOffset) {
+                std::cout << "Only matching when offset";
+            } else {
+                std::cout << "No match";
+            }
         }
-        if (didMatchAnyChecksum) {
-            std::cout << "OK";
-        } else if (didMatchAnyOffset) {
-            std::cout << "No match, but offset";
-        } else {
-            std::cout << "No match, no offset";
-        }
+        
         std::cout << std::endl;
     }
     

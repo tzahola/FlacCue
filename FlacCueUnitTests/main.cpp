@@ -11,3 +11,4 @@
 
 #include "CueParseTest.hpp"
 #include "GapsAppendedSplitTest.hpp"
+#include "AccurateRipTest.hpp"

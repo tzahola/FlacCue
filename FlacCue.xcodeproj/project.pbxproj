@@ -11,6 +11,7 @@
 		670465B91C5C02FE002ABD36 /* AccurateRip.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 670465B71C5C02FE002ABD36 /* AccurateRip.hpp */; };
 		670465BC1C5C3A3B002ABD36 /* libcurl.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 670465BA1C5C36D7002ABD36 /* libcurl.tbd */; };
 		670465BD1C5C3A43002ABD36 /* libcurl.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 670465BA1C5C36D7002ABD36 /* libcurl.tbd */; };
+		670465BF1C67E3CF002ABD36 /* AccurateRipTest.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 670465BE1C67E3CF002ABD36 /* AccurateRipTest.hpp */; };
 		67E00B711C4D8B3F00BA13DA /* CueParse.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 67E00A901C42AC7700BA13DA /* CueParse.cpp */; };
 		67E00B721C4D8B4200BA13DA /* cue.c in Sources */ = {isa = PBXBuildFile; fileRef = 67E00A811C3F349500BA13DA /* cue.c */; };
 		67E00B731C4D8B4400BA13DA /* cue.parser in Sources */ = {isa = PBXBuildFile; fileRef = 67E00A6E1C3C746600BA13DA /* cue.parser */; };
@@ -87,6 +88,7 @@
 		670465B61C5C02FE002ABD36 /* AccurateRip.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AccurateRip.cpp; sourceTree = "<group>"; };
 		670465B71C5C02FE002ABD36 /* AccurateRip.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = AccurateRip.hpp; sourceTree = "<group>"; };
 		670465BA1C5C36D7002ABD36 /* libcurl.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libcurl.tbd; path = usr/lib/libcurl.tbd; sourceTree = SDKROOT; };
+		670465BE1C67E3CF002ABD36 /* AccurateRipTest.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = AccurateRipTest.hpp; path = FlacCueUnitTests/AccurateRipTest.hpp; sourceTree = SOURCE_ROOT; };
 		67E00A6D1C3C746600BA13DA /* cue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cue.h; sourceTree = "<group>"; };
 		67E00A6E1C3C746600BA13DA /* cue.parser */ = {isa = PBXFileReference; lastKnownFileType = folder; path = cue.parser; sourceTree = "<group>"; };
 		67E00A811C3F349500BA13DA /* cue.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = cue.c; sourceTree = "<group>"; };
@@ -178,6 +180,7 @@
 			isa = PBXGroup;
 			children = (
 				67E00B891C4D8D7300BA13DA /* main.cpp */,
+				670465BE1C67E3CF002ABD36 /* AccurateRipTest.hpp */,
 				670465B51C5AC091002ABD36 /* GapsAppendedSplitTest.hpp */,
 				670465B41C5AC046002ABD36 /* CueParseTest.hpp */,
 				670465B31C5ABFB4002ABD36 /* TestUtils.hpp */,
@@ -201,6 +204,7 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				670465BF1C67E3CF002ABD36 /* AccurateRipTest.hpp in Headers */,
 				67E00BB01C4F0A3F00BA13DA /* FlacCue.h in Headers */,
 				670465B91C5C02FE002ABD36 /* AccurateRip.hpp in Headers */,
 				67E00BB11C4F0A3F00BA13DA /* CueParse.hpp in Headers */,
