@@ -171,6 +171,11 @@ public:
     int numberOfEntries() const {
         return (int)_entries.size();
     }
+    
+    cue::Time trackLengthAt(int track) const {
+        assert(track >= 0 && track < numberOfEntries() - 1);
+        return (*this)[track + 1].startOffset - (*this)[track].startOffset;
+    }
 };
 
 static inline uint32_t fold(uint64_t x) {
@@ -234,102 +239,276 @@ static std::string calculateARDataURL(const TableOfContents& toc) {
 }
 
 class ChecksumGenerator {
-    const TableOfContents _toc;
-    const int32_t _minimumOffset;
-    const int32_t _maximumOffset;
-    
-    
-    uint32_t _arDiscSampleIndex;
-    uint32_t _arTrackSampleIndex;
-    int _currentTrack;
-    
     using Checksums = std::vector<TrackCRC>;
-    std::queue<uint32_t> _offsetCalculationSamples;
-    std::vector<uint32_t> _offsetCalculationSums;
-    std::vector<Checksums> _v1Checksums;
     
-    int numberOfTracks() const {
-        return _toc.numberOfEntries() - 1;
-    }
+    const TableOfContents _toc;
     
-public:
-    const std::string accurateRipDataURL;
-    
-    const TrackCRC& v1ChecksumWithOffset(int track, int32_t offset) const {
-        assert(offset >= _minimumOffset && offset <= _maximumOffset);
-        return _v1Checksums[track].at(offset - _minimumOffset);
-    }
-    
-    ChecksumGenerator(const TableOfContents& toc, int32_t minimumOffset = -2000, int32_t maximumOffset = 2000)
-    : _toc(toc), accurateRipDataURL(calculateARDataURL(toc)), _minimumOffset(minimumOffset), _maximumOffset(maximumOffset) {
+    class V1ChecksumGenerator {
+        const int32_t _minimumOffset;
+        const int32_t _maximumOffset;
         
-        assert(_minimumOffset <= _maximumOffset);
-        assert(_minimumOffset > -(cue::CdSamplesPerFrame * 5 - 1)); // Backward offset cannot be larger than five frames - 1 samples
-        assert(_maximumOffset < cue::CdSamplesPerFrame * 5); // Forward offset cannot be larger than five frames
+        uint32_t _sampleIndex;
+        int _baseChecksumCalculationTrack;
+        int _derivedChecksumsCalculationTrack;
+        std::queue<uint32_t> _offsetCalculationSamples;
+        std::vector<uint32_t> _offsetCalculationSums;
+        std::vector<Checksums> _checksums;
         
-        _arTrackSampleIndex = 0;
-        _currentTrack = -1;
-        
-        _v1Checksums.resize(numberOfTracks());
-        for (auto& checksums : _v1Checksums) {
-            checksums.push_back(0);
-        }
-        
-        _offsetCalculationSums.resize(numberOfTracks(), 0);
-    }
-    
-    uint32_t firstSampleIndexForTrack(int track) {
-        return track == 0 ? (cue::CdSamplesPerFrame * 5 - 1) : 0;
-    }
-    
-    uint32_t lastSampleIndexForTrack(int track) {
-        assert(track <= numberOfTracks() - 1);
-        if (track == -1) {
-            return firstSampleIndexForTrack(0) + _minimumOffset - 1;
-        } else {
-            return (uint32_t)(_toc[track + 1].startOffset.samples - _toc[track].startOffset.samples - 1
-                              - (track == numberOfTracks() - 1 ? cue::CdSamplesPerFrame * 5 : 0));
-        }
-    }
-    
-    void processSamples(int32_t const * const buffer[2], uint32_t count) {
-        
-        for (auto i = 0; i < count; ++i) {
-            uint32_t samples = (((uint16_t)buffer[1][i] << 16) | (uint16_t)buffer[0][i]);
+        std::vector<uint32_t> _firstSampleIndexes;
+        std::vector<uint32_t> _firstSampleMultipliers;
+        std::vector<uint32_t> _lastSampleIndexes;
+    public:
+        V1ChecksumGenerator(const TableOfContents& toc,
+                            const std::vector<uint32_t>& firstSampleIndexes,
+                            const std::vector<uint32_t>& firstSampleMultipliers,
+                            const std::vector<uint32_t>& lastSampleIndexes,
+                            int32_t minimumOffset,
+                            int32_t maximumOffset)
+        : _firstSampleIndexes(firstSampleIndexes),
+        _firstSampleMultipliers(firstSampleMultipliers),
+        _lastSampleIndexes(lastSampleIndexes),
+        _minimumOffset(minimumOffset),
+        _maximumOffset(maximumOffset) {
             
-            if (_currentTrack != -1) {
-                if (_arTrackSampleIndex < firstSampleIndexForTrack(_currentTrack) + (_maximumOffset - _minimumOffset)) {
-                    if (_currentTrack != numberOfTracks()) {
+            _sampleIndex = (uint32_t)toc[0].startOffset.samples;
+            _baseChecksumCalculationTrack = 0;
+            _derivedChecksumsCalculationTrack = 0;
+            
+            auto numberOfTracks = toc.numberOfEntries() - 1;
+            
+            _checksums.resize(numberOfTracks);
+            for (auto& checksums : _checksums) {
+                checksums.push_back(0);
+            }
+            
+            _offsetCalculationSums.resize(numberOfTracks, 0);
+        }
+        
+        const TrackCRC& checksumWithOffset(int track, int32_t offset) const {
+            assert(offset >= _minimumOffset && offset <= _maximumOffset);
+            return _checksums[track].at(offset - _minimumOffset);
+        }
+        
+        void processSamples(int32_t const * const buffer[2], uint32_t count) {
+        
+            for (auto i = 0; i < count; ++i) {
+                uint32_t samples = (((uint16_t)buffer[1][i] << 16) | (uint16_t)buffer[0][i]);
+                
+                auto numberOfTracks = _checksums.size();
+                
+                if (_sampleIndex >= _firstSampleIndexes[_baseChecksumCalculationTrack] + _minimumOffset) {
+                    
+                    if (_sampleIndex < _firstSampleIndexes[_baseChecksumCalculationTrack] + _maximumOffset) {
                         _offsetCalculationSamples.push(samples);
                     }
                     
-                    if (_currentTrack != 0) {
-                        uint32_t previousTrackIndex = _currentTrack - 1;
-                        _v1Checksums[previousTrackIndex].push_back(
-                            *(_v1Checksums[previousTrackIndex].end() - 1) -
-                            _offsetCalculationSums[previousTrackIndex] -
-                            (firstSampleIndexForTrack(previousTrackIndex) * _offsetCalculationSamples.front()) +
-                            samples * (lastSampleIndexForTrack(previousTrackIndex) + 1));
-                        
-                        _offsetCalculationSums[previousTrackIndex] -= _offsetCalculationSamples.front();
-                        _offsetCalculationSums[previousTrackIndex] += samples;
-                        _offsetCalculationSamples.pop();
+                    if (_sampleIndex <= _lastSampleIndexes[_baseChecksumCalculationTrack] + _minimumOffset) {
+                        uint32_t multiplier = _firstSampleMultipliers[_baseChecksumCalculationTrack] + ((_sampleIndex - _minimumOffset) - _firstSampleIndexes[_baseChecksumCalculationTrack]);
+                        _checksums[_baseChecksumCalculationTrack][0] += multiplier * samples;
+                        _offsetCalculationSums[_baseChecksumCalculationTrack] += samples;
                     }
                 }
                 
-                if (_currentTrack != numberOfTracks()) {
-                    _v1Checksums[_currentTrack][0] += (_arTrackSampleIndex + 1) * samples;
-                    _offsetCalculationSums[_currentTrack] += samples;
+                if (_sampleIndex > _lastSampleIndexes[_derivedChecksumsCalculationTrack] + _minimumOffset &&
+                    _sampleIndex <= _lastSampleIndexes[_derivedChecksumsCalculationTrack] + _maximumOffset) {
+                    assert(!_offsetCalculationSamples.empty());
+                    
+                    uint32_t multiplier = _firstSampleMultipliers[_derivedChecksumsCalculationTrack] + (_lastSampleIndexes[_derivedChecksumsCalculationTrack] - _firstSampleIndexes[_derivedChecksumsCalculationTrack]);
+                    _checksums[_derivedChecksumsCalculationTrack].push_back(
+                        *(_checksums[_derivedChecksumsCalculationTrack].end() - 1) -
+                        _offsetCalculationSums[_derivedChecksumsCalculationTrack] -
+                        ((_firstSampleMultipliers[_derivedChecksumsCalculationTrack] - 1) * _offsetCalculationSamples.front()) +
+                        multiplier * samples);
+                    
+                    _offsetCalculationSums[_derivedChecksumsCalculationTrack] -= _offsetCalculationSamples.front();
+                    _offsetCalculationSums[_derivedChecksumsCalculationTrack] += samples;
+                    _offsetCalculationSamples.pop();
                 }
-            }
-            
-            if (_currentTrack != numberOfTracks() && _arTrackSampleIndex == lastSampleIndexForTrack(_currentTrack)) {
-                ++_currentTrack;
-                _arTrackSampleIndex = firstSampleIndexForTrack(_currentTrack);
-            } else {
-                ++_arTrackSampleIndex;
+                
+                if (_sampleIndex == _lastSampleIndexes[_derivedChecksumsCalculationTrack] + _maximumOffset) {
+                    ++_derivedChecksumsCalculationTrack;
+                }
+                
+                if (_baseChecksumCalculationTrack < numberOfTracks - 1 &&
+                    _sampleIndex == _firstSampleIndexes[_baseChecksumCalculationTrack + 1] - 1 + _minimumOffset) {
+                    ++_baseChecksumCalculationTrack;
+                }
+                
+                ++_sampleIndex;
             }
         }
+    };
+    
+    class V2ChecksumGenerator {
+        uint32_t _sampleIndex;
+        int _track;
+        std::vector<TrackCRC> _checksums;
+        
+        std::vector<uint32_t> _firstSampleIndexes;
+        std::vector<uint32_t> _firstSampleMultipliers;
+        std::vector<uint32_t> _lastSampleIndexes;
+    public:
+        V2ChecksumGenerator(const TableOfContents& toc,
+                            const std::vector<uint32_t>& firstSampleIndexes,
+                            const std::vector<uint32_t>& firstSampleMultipliers,
+                            const std::vector<uint32_t>& lastSampleIndexes)
+        : _firstSampleIndexes(firstSampleIndexes),
+        _firstSampleMultipliers(firstSampleMultipliers),
+        _lastSampleIndexes(lastSampleIndexes) {
+            auto numberOfTracks = toc.numberOfEntries() - 1;
+            _track = 0;
+            _checksums = std::vector<uint32_t>(numberOfTracks, 0);
+            _sampleIndex = (uint32_t)toc[0].startOffset.samples;
+        }
+        
+        TrackCRC checksum(int track) const {
+            return _checksums[track];
+        }
+        
+        void processSamples(int32_t const * const buffer[2], uint32_t count) {
+            
+            for (auto i = 0; i < count; ++i) {
+                if (_sampleIndex >= _firstSampleIndexes[_track] && _sampleIndex <= _lastSampleIndexes[_track]) {
+                    uint32_t samples = (((uint16_t)buffer[1][i] << 16) | (uint16_t)buffer[0][i]);
+                    uint32_t multiplier = _firstSampleMultipliers[_track] + _sampleIndex - _firstSampleIndexes[_track];
+                    _checksums[_track] += fold((uint64_t)multiplier * (uint64_t)samples);
+                }
+                
+                auto numberOfTracks = _checksums.size();
+                if (_track < numberOfTracks - 1 &&
+                    _sampleIndex == _firstSampleIndexes[_track + 1] - 1) {
+                    ++_track;
+                }
+                
+                ++_sampleIndex;
+            }
+        }
+    };
+    
+    int numberOfTracks() const {
+        return _toc.numberOfEntries() - 1;
+    };
+    
+    V1ChecksumGenerator _v1ChecksumGenerator;
+    V1ChecksumGenerator _v1Frame450ChecksumGenerator;
+    V2ChecksumGenerator _v2ChecksumGenerator;
+    
+public:
+    const std::string accurateRipDataURL;
+    const int32_t _minimumOffset;
+    const int32_t _maximumOffset;
+    
+    int32_t minimumOffset() const { return _minimumOffset; }
+    int32_t maximumOffset() const { return _maximumOffset; }
+    
+    TrackCRC v1ChecksumWithOffset(int track, int32_t offset) const {
+        return _v1ChecksumGenerator.checksumWithOffset(track, offset);
+    }
+    
+    TrackCRC v1Frame450ChecksumWithOffset(int track, int32_t offset) const {
+        return _v1Frame450ChecksumGenerator.checksumWithOffset(track, offset);
+    }
+    
+    TrackCRC v2Checksum(int track) const {
+        return _v2ChecksumGenerator.checksum(track);
+    }
+    
+    static std::vector<uint32_t> calculateFirstSampleIndexesForV1Checksum(const TableOfContents& toc) {
+        auto numberOfTracks = toc.numberOfEntries() - 1;
+        std::vector<uint32_t> firstSampleIndexes;
+        for (auto track = 0; track < numberOfTracks; ++track) {
+            bool isFirstTrack = track == 0;
+            uint32_t firstSampleIndex = (uint32_t)toc[track].startOffset.samples + (isFirstTrack ? (cue::CdSamplesPerFrame * 5 - 1) : 0);
+            firstSampleIndexes.push_back(firstSampleIndex);
+        }
+        return firstSampleIndexes;
+    }
+    
+    static std::vector<uint32_t> calculateLastSampleIndexesForV1Checksum(const TableOfContents& toc) {
+        auto numberOfTracks = toc.numberOfEntries() - 1;
+        std::vector<uint32_t> lastSampleIndexes;
+        for (auto track = 0; track < numberOfTracks; ++track) {
+            bool isLastTrack = track == numberOfTracks - 1;
+            uint32_t lastSampleIndex =  (uint32_t)(toc[track + 1].startOffset.samples - 1) - (isLastTrack ? cue::CdSamplesPerFrame * 5 : 0);
+            lastSampleIndexes.push_back(lastSampleIndex);
+        }
+        return lastSampleIndexes;
+    }
+    
+    static std::vector<uint32_t> calculateFirstSampleMultipliersForV1Checksum(const TableOfContents& toc) {
+        auto numberOfTracks = toc.numberOfEntries() - 1;
+        std::vector<uint32_t> firstSampleMultipliers;
+        for (auto track = 0; track < numberOfTracks; ++track) {
+            bool isFirstTrack = track == 0;
+            uint32_t firstSampleMultiplier = isFirstTrack ? cue::CdSamplesPerFrame * 5 : 1;
+            firstSampleMultipliers.push_back(firstSampleMultiplier);
+        }
+        return firstSampleMultipliers;
+    }
+    
+    static std::vector<uint32_t> calculateFirstSampleIndexesForV1Frame450Checksum(const TableOfContents& toc) {
+        std::vector<uint32_t> firstSampleIndexes;
+        for (auto track = 0; track < toc.numberOfEntries() - 1; ++track) {
+            firstSampleIndexes.push_back((uint32_t)toc[track].startOffset.samples + cue::CdSamplesPerFrame * 450);
+        }
+        return firstSampleIndexes;
+    }
+    
+    static std::vector<uint32_t> calculateLastSampleIndexesForV1Frame450Checksum(const TableOfContents& toc) {
+        std::vector<uint32_t> lastSampleIndexes;
+        for (auto track = 0; track < toc.numberOfEntries() - 1; ++track) {
+            lastSampleIndexes.push_back((uint32_t)toc[track].startOffset.samples + cue::CdSamplesPerFrame * 451 - 1);
+        }
+        return lastSampleIndexes;
+    }
+    
+    static std::vector<uint32_t> calculateFirstSampleMultipliersForV1Frame450Checksum(const TableOfContents& toc) {
+        return std::vector<uint32_t>(toc.numberOfEntries() - 1, 1);
+    }
+    
+    static std::vector<uint32_t> calculateFirstSampleIndexesForV2Checksum(const TableOfContents& toc) {
+        return calculateFirstSampleIndexesForV1Checksum(toc);
+    }
+    
+    static std::vector<uint32_t> calculateLastSampleIndexesForV2Checksum(const TableOfContents& toc) {
+        return calculateLastSampleIndexesForV1Checksum(toc);
+    }
+    
+    static std::vector<uint32_t> calculateFirstSampleMultipliersForV2Checksum(const TableOfContents& toc) {
+        return calculateFirstSampleMultipliersForV1Checksum(toc);
+    }
+    
+    ChecksumGenerator(const TableOfContents& toc, int32_t minimumOffset = -2939, int32_t maximumOffset = 2940)
+    : _toc(toc),
+    accurateRipDataURL(calculateARDataURL(toc)),
+    _minimumOffset(minimumOffset),
+    _maximumOffset(maximumOffset),
+    _v1ChecksumGenerator(toc,
+                         calculateFirstSampleIndexesForV1Checksum(toc),
+                         calculateFirstSampleMultipliersForV1Checksum(toc),
+                         calculateLastSampleIndexesForV1Checksum(toc),
+                         minimumOffset,
+                         maximumOffset),
+    _v1Frame450ChecksumGenerator(toc,
+                                 calculateFirstSampleIndexesForV1Frame450Checksum(toc),
+                                 calculateFirstSampleMultipliersForV1Frame450Checksum(toc),
+                                 calculateLastSampleIndexesForV1Frame450Checksum(toc),
+                                 minimumOffset,
+                                 maximumOffset),
+    _v2ChecksumGenerator(toc,
+                         calculateFirstSampleIndexesForV2Checksum(toc),
+                         calculateFirstSampleMultipliersForV2Checksum(toc),
+                         calculateLastSampleIndexesForV2Checksum(toc)) {
+        
+        assert(_minimumOffset <= _maximumOffset);
+        assert(_minimumOffset >= -(cue::CdSamplesPerFrame * 5 - 1)); // Backward offset cannot be larger than five frames - 1 samples
+        assert(_maximumOffset <= cue::CdSamplesPerFrame * 5); // Forward offset cannot be larger than five frames
+    }
+    
+    void processSamples(int32_t const * const buffer[2], uint32_t count) {
+        _v1ChecksumGenerator.processSamples(buffer, count);
+        _v1Frame450ChecksumGenerator.processSamples(buffer, count);
+        _v2ChecksumGenerator.processSamples(buffer, count);
     }
 };
     

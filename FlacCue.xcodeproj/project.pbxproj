@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		670465B81C5C02FE002ABD36 /* AccurateRip.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 670465B61C5C02FE002ABD36 /* AccurateRip.cpp */; };
 		670465B91C5C02FE002ABD36 /* AccurateRip.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 670465B71C5C02FE002ABD36 /* AccurateRip.hpp */; };
 		670465BC1C5C3A3B002ABD36 /* libcurl.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 670465BA1C5C36D7002ABD36 /* libcurl.tbd */; };
 		670465BD1C5C3A43002ABD36 /* libcurl.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 670465BA1C5C36D7002ABD36 /* libcurl.tbd */; };
@@ -85,7 +84,6 @@
 		670465B31C5ABFB4002ABD36 /* TestUtils.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = TestUtils.hpp; path = FlacCueUnitTests/TestUtils.hpp; sourceTree = SOURCE_ROOT; };
 		670465B41C5AC046002ABD36 /* CueParseTest.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = CueParseTest.hpp; path = FlacCueUnitTests/CueParseTest.hpp; sourceTree = SOURCE_ROOT; };
 		670465B51C5AC091002ABD36 /* GapsAppendedSplitTest.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = GapsAppendedSplitTest.hpp; path = FlacCueUnitTests/GapsAppendedSplitTest.hpp; sourceTree = SOURCE_ROOT; };
-		670465B61C5C02FE002ABD36 /* AccurateRip.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AccurateRip.cpp; sourceTree = "<group>"; };
 		670465B71C5C02FE002ABD36 /* AccurateRip.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = AccurateRip.hpp; sourceTree = "<group>"; };
 		670465BA1C5C36D7002ABD36 /* libcurl.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libcurl.tbd; path = usr/lib/libcurl.tbd; sourceTree = SDKROOT; };
 		670465BE1C67E3CF002ABD36 /* AccurateRipTest.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = AccurateRipTest.hpp; path = FlacCueUnitTests/AccurateRipTest.hpp; sourceTree = SOURCE_ROOT; };
@@ -168,7 +166,6 @@
 				67E00A8F1C41DA6F00BA13DA /* CueParse.hpp */,
 				67E00A901C42AC7700BA13DA /* CueParse.cpp */,
 				670465B71C5C02FE002ABD36 /* AccurateRip.hpp */,
-				670465B61C5C02FE002ABD36 /* AccurateRip.cpp */,
 				67E00A6D1C3C746600BA13DA /* cue.h */,
 				67E00A811C3F349500BA13DA /* cue.c */,
 				67E00A6E1C3C746600BA13DA /* cue.parser */,
@@ -332,7 +329,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				67E00B711C4D8B3F00BA13DA /* CueParse.cpp in Sources */,
-				670465B81C5C02FE002ABD36 /* AccurateRip.cpp in Sources */,
 				67E00B721C4D8B4200BA13DA /* cue.c in Sources */,
 				67E00B731C4D8B4400BA13DA /* cue.parser in Sources */,
 			);
@@ -532,6 +528,7 @@
 		67E00B7D1C4D8B7700BA13DA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				LD_RUNPATH_SEARCH_PATHS = .;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					/usr/local/Cellar/flac/1.3.1/lib,
@@ -543,6 +540,7 @@
 		67E00B7E1C4D8B7700BA13DA /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				LD_RUNPATH_SEARCH_PATHS = .;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					/usr/local/Cellar/flac/1.3.1/lib,

@@ -405,6 +405,23 @@ Split GapsAppendedSplitGenerator::split(const cue::Disc &disc) const {
         result.outputFiles.push_back(currentOutput);
     }
     
+    std::vector<SplitOutput> consolidatedOutputFiles;
+    for (auto outputFile : result.outputFiles) {
+        SplitOutput consolidatedOutputFile;
+        consolidatedOutputFile.outputFile = outputFile.outputFile;
+        consolidatedOutputFile.inputSegments.push_back(*outputFile.inputSegments.begin());
+        for (auto inputSegment = outputFile.inputSegments.begin() + 1; inputSegment != outputFile.inputSegments.end(); ++inputSegment) {
+            if (inputSegment->inputFile == consolidatedOutputFile.inputSegments.rbegin()->inputFile &&
+                inputSegment->begin == consolidatedOutputFile.inputSegments.rbegin()->end.value()) {
+                consolidatedOutputFile.inputSegments.rbegin()->end = inputSegment->end;
+            } else {
+                consolidatedOutputFile.inputSegments.push_back(*inputSegment);
+            }
+        }
+        consolidatedOutputFiles.push_back(consolidatedOutputFile);
+    }
+    result.outputFiles = consolidatedOutputFiles;
+    
     return result;
 }
     

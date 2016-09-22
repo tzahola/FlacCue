@@ -46,6 +46,7 @@ struct Time {
     bool operator<(const Time& time) const { return samples < time.samples; }
     bool operator>(const Time& time) const { return time < *this; }
     bool operator==(const Time& time) const { return !(time < *this || time > *this); }
+    bool operator!=(const Time& time) const { return !(*this == time); }
     
     Time operator+(const Time& time) const { return samples + time.samples; }
     Time operator-(const Time& time) const { return samples - time.samples; }
