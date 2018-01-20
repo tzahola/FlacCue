@@ -165,24 +165,18 @@ BOOST_AUTO_TEST_CASE(SingleFileImageWithGaps) {
     {
         auto output = split.outputFiles[1];
         BOOST_CHECK_EQUAL(output.outputFile, "outputFile1");
-        BOOST_CHECK_EQUAL(output.inputSegments.size(), 2);
+        BOOST_CHECK_EQUAL(output.inputSegments.size(), 1);
         BOOST_CHECK_EQUAL(output.inputSegments[0].inputFile, "inputFile1");
         BOOST_CHECK_EQUAL(output.inputSegments[0].begin, cue::Time(0,10,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[0].end, cue::Time(0,20,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[1].inputFile, "inputFile1");
-        BOOST_CHECK_EQUAL(output.inputSegments[1].begin, cue::Time(0,20,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[1].end, cue::Time(0,30,0));
+        BOOST_CHECK_EQUAL(output.inputSegments[0].end, cue::Time(0,30,0));
     }
     {
         auto output = split.outputFiles[2];
         BOOST_CHECK_EQUAL(output.outputFile, "outputFile2");
-        BOOST_CHECK_EQUAL(output.inputSegments.size(), 2);
+        BOOST_CHECK_EQUAL(output.inputSegments.size(), 1);
         BOOST_CHECK_EQUAL(output.inputSegments[0].inputFile, "inputFile1");
         BOOST_CHECK_EQUAL(output.inputSegments[0].begin, cue::Time(0,30,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[0].end, cue::Time(0,40,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[1].inputFile, "inputFile1");
-        BOOST_CHECK_EQUAL(output.inputSegments[1].begin, cue::Time(0,40,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[1].end, cue::Time(0,50,0));
+        BOOST_CHECK_EQUAL(output.inputSegments[0].end, cue::Time(0,50,0));
     }
     {
         auto output = split.outputFiles[3];
@@ -266,24 +260,18 @@ BOOST_AUTO_TEST_CASE(MultipleFilesGapsAppended) {
     {
         auto output = split.outputFiles[0];
         BOOST_CHECK_EQUAL(output.outputFile, "outputFile1");
-        BOOST_CHECK_EQUAL(output.inputSegments.size(), 2);
+        BOOST_CHECK_EQUAL(output.inputSegments.size(), 1);
         BOOST_CHECK_EQUAL(output.inputSegments[0].inputFile, "outputFile1");
         BOOST_CHECK_EQUAL(output.inputSegments[0].begin, cue::Time(0,0,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[0].end, cue::Time(0,10,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[1].inputFile, "outputFile1");
-        BOOST_CHECK_EQUAL(output.inputSegments[1].begin, cue::Time(0,10,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[1].end, boost::none);
+        BOOST_CHECK_EQUAL(output.inputSegments[0].end, boost::none);
     }
     {
         auto output = split.outputFiles[1];
         BOOST_CHECK_EQUAL(output.outputFile, "outputFile2");
-        BOOST_CHECK_EQUAL(output.inputSegments.size(), 2);
+        BOOST_CHECK_EQUAL(output.inputSegments.size(), 1);
         BOOST_CHECK_EQUAL(output.inputSegments[0].inputFile, "outputFile2");
         BOOST_CHECK_EQUAL(output.inputSegments[0].begin, cue::Time(0,0,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[0].end, cue::Time(0,10,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[1].inputFile, "outputFile2");
-        BOOST_CHECK_EQUAL(output.inputSegments[1].begin, cue::Time(0,10,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[1].end, boost::none);
+        BOOST_CHECK_EQUAL(output.inputSegments[0].end, boost::none);
     }
     {
         auto output = split.outputFiles[2];
