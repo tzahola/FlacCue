@@ -21,6 +21,7 @@
 #include <FLAC++/all.h>
 #include <algorithm>
 #include <unordered_map>
+#include <unordered_set>
 #include <tuple>
 #include <math.h>
 
@@ -133,27 +134,6 @@ template<typename T, typename ... Targs> T fallback(const boost::optional<T>& x,
     }
 }
 
-unsigned int levenshtein_distance(const std::string& s1, const std::string& s2) {
-    auto len1 = s1.size();
-    auto len2 = s2.size();
-    std::vector<unsigned int> col(len2 + 1);
-    std::vector<unsigned int> prevCol(len2 + 1);
-    
-    for (unsigned int i = 0; i < prevCol.size(); ++i) {
-        prevCol[i] = i;
-    }
-    
-    for (unsigned int i = 0; i < len1; i++) {
-        col[0] = i + 1;
-        for (unsigned int j = 0; j < len2; ++j) {
-            col[j + 1] = std::min({ prevCol[1 + j] + 1, col[j] + 1, prevCol[j] + (s1[i] == s2[j] ? 0 : 1) });
-        }
-        col.swap(prevCol);
-    }
-    
-    return prevCol[len2];
-}
-
 static inline bool hasSuffix(const std::string& str, const std::string& suffix) {
     return
     (str.size() >= suffix.size()) &&
@@ -195,13 +175,7 @@ public:
     }
 };
 
-std::string filenameMostSimiliarTo(const std::string& filename, const std::vector<std::string>& filenames) {
-    return *std::min_element(filenames.begin(), filenames.end(), [&](const std::string& a, const std::string& b) {
-        return levenshtein_distance(a, filename) < levenshtein_distance(b, filename);
-    });
-}
-
-std::vector<std::string> filesInDir(const std::string& dirPath) {
+static std::vector<std::string> filesInDir(const std::string& dirPath) {
     std::vector<std::string> result;
     auto dir = opendir(dirPath.c_str());
     struct dirent *ent;
@@ -212,6 +186,58 @@ std::vector<std::string> filesInDir(const std::string& dirPath) {
     }
     closedir(dir);
     return result;
+}
+
+static std::vector<cue::Time> createTOC(const cue::Disc& disc, const std::unordered_map<std::string, cue::Time>& fileLengths) {
+    std::vector<cue::Time> toc;
+    
+    cue::File const* currentFile = nullptr;
+    cue::Time currentFileBeginTime = fallback(disc.tracksCbegin()->pregap, boost::optional<cue::Time>(0));
+    for_each(disc.tracksCbegin(), disc.tracksCend(), [&](const cue::Track& track) {
+        for_each(track.indexesCbegin(), track.indexesCend(), [&](const cue::Index& index) {
+            if (&index.file() != currentFile) {
+                currentFileBeginTime = currentFileBeginTime + (currentFile == nullptr ? 0 : fileLengths.find(currentFile->path)->second);
+                currentFile = &index.file();
+            }
+            if (index.index == 1) {
+                if (track.pregap != boost::none && track.pregap.value() > 0 && track.number != 1) {
+                    throw "Non-zero pregap (" + (std::stringstream() << track.pregap.value()).str() + ") on track " + std::to_string(track.number);
+                }
+                toc.push_back(currentFileBeginTime + index.begin);
+            }
+        });
+    });
+    toc.push_back(currentFileBeginTime + fileLengths.find(currentFile->path)->second);
+    
+    return toc;
+}
+
+static std::string filenameSafeString(const std::string& str) {
+    std::string result = str;
+    std::replace(result.begin(), result.end(), '/', '_');
+    return result;
+}
+
+static std::string createOffsetIntervalsString(const std::vector<int32_t>& offsets) {
+    std::stringstream result;
+    int32_t currentIntervalBegin = offsets[0];
+    for (auto i = 1; i < offsets.size() + 1; ++i) {
+        if (i == offsets.size() || offsets[i] != offsets[i - 1] + 1) {
+            if (result.str().length() != 0) {
+                result << ", ";
+            }
+            if (currentIntervalBegin == offsets[i - 1]) {
+                result << std::to_string(currentIntervalBegin);
+            } else {
+                result << std::to_string(currentIntervalBegin) << "..." << std::to_string(offsets[i - 1]);
+            }
+            
+            if (i != offsets.size()) {
+                currentIntervalBegin = offsets[i];
+            }
+        }
+    }
+    return result.str();
 }
 
 int main(int argc, const char * argv[]) {
@@ -234,6 +260,8 @@ int main(int argc, const char * argv[]) {
             disc = std::make_shared<cue::Disc>(input);
             input.close();
         } else if (S_ISDIR(pathStat.st_mode)) {
+            std::cout << "Specified directory, synthesising dummy cue sheet." << std::endl;
+            
             disc = std::make_shared<cue::Disc>();
             cueDir = path;
             auto filesInCueDir = filesInDir(cueDir);
@@ -256,15 +284,51 @@ int main(int argc, const char * argv[]) {
                 index.setFile(file);
             }
         } else {
-            std::cerr << "Unknown file: " << path << std::endl;
-            abort();
+            throw std::runtime_error("Unknown file: " + path);
         }
         
-        auto filesInCueDir = filesInDir(cueDir);
         std::vector<std::string> flacFilesInCueDir;
-        std::copy_if(filesInCueDir.begin(), filesInCueDir.end(), std::back_inserter(flacFilesInCueDir), [](const std::string& file) {
-            return hasSuffix(file, ".flac");
+        {
+            auto filesInCueDir = filesInDir(cueDir);
+            std::copy_if(filesInCueDir.begin(), filesInCueDir.end(), std::back_inserter(flacFilesInCueDir), [](const std::string& file) {
+                return hasSuffix(file, ".flac");
+            });
+        }
+        
+        std::vector<std::string> filesInCueSheet;
+        {
+            std::for_each(disc->filesCbegin(), disc->filesCend(), [&](const cue::File& file) {
+                filesInCueSheet.push_back(file.path);
+            });
+        }
+        
+        std::unordered_map<std::string, std::string> cueSheetFilenameMap;
+        bool needGuessing = !std::all_of(filesInCueSheet.cbegin(), filesInCueSheet.cend(), [&](const std::string& fileInCueSheet) {
+            return std::find(flacFilesInCueDir.cbegin(), flacFilesInCueDir.cend(), fileInCueSheet) != flacFilesInCueDir.cend();
         });
+        if (needGuessing) {
+            if (flacFilesInCueDir.size() != filesInCueSheet.size()) {
+                throw std::runtime_error(
+                    "Can't guess filenames because the number of files in the directory (" + std::to_string(flacFilesInCueDir.size()) + ")"
+                    "is not the same as the number of files in the cue sheet (" + std::to_string(filesInCueSheet.size()) + ")");
+            }
+            
+            std::sort(flacFilesInCueDir.begin(), flacFilesInCueDir.end());
+            std::sort(filesInCueSheet.begin(), filesInCueSheet.end());
+            
+            std::cout << "Filenames in the cue sheet are incorrect. Guessing filenames:" << std::endl;
+            auto flacFileInCueDir = flacFilesInCueDir.cbegin();
+            for (auto fileInCueSheet : filesInCueSheet) {
+                cueSheetFilenameMap[fileInCueSheet] = *flacFileInCueDir;
+                std::cout << "'" << fileInCueSheet <<  "' is '" << *flacFileInCueDir << "'" << std::endl;
+                ++flacFileInCueDir;
+            }
+        } else {
+            std::cout << "Filenames in the cue sheet are correct." << std::endl;
+            for (auto fileInCueSheet : filesInCueSheet) {
+                cueSheetFilenameMap[fileInCueSheet] = fileInCueSheet;
+            }
+        }
         
         int maxTrackNumber = max_element(disc->tracksCbegin(), disc->tracksCend(), [](const cue::Track& a, const cue::Track& b) {
             return a.number < b.number;
@@ -273,26 +337,11 @@ int main(int argc, const char * argv[]) {
         
         std::unordered_map<std::string, cue::Time> inputFileLengths;
         for_each(disc->filesCbegin(), disc->filesCend(), [&](const cue::File& file) {
-            auto realFilename = filenameMostSimiliarTo(file.path, flacFilesInCueDir);
+            auto realFilename = cueSheetFilenameMap[file.path];
             inputFileLengths[file.path] = readFileLength(cueDir + "/" + realFilename);
         });
         
-        std::vector<cue::Time> trackOffsets;
-        cue::File const* currentFile = nullptr;
-        cue::Time currentFileBeginTime = 0;
-        for_each(disc->tracksCbegin(), disc->tracksCend(), [&](const cue::Track& track) {
-            for_each(track.indexesCbegin(), track.indexesCend(), [&](const cue::Index& index) {
-                if (&index.file() != currentFile) {
-                    currentFileBeginTime = currentFileBeginTime + (currentFile == nullptr ? 0 : inputFileLengths[currentFile->path]);
-                    currentFile = &index.file();
-                }
-                if (index.index == 1) {
-                    trackOffsets.push_back(currentFileBeginTime + index.begin);
-                }
-            });
-        });
-        trackOffsets.push_back(currentFileBeginTime + inputFileLengths[currentFile->path]);
-        
+        std::vector<cue::Time> trackOffsets = createTOC(*disc, inputFileLengths);
         auto toc = accuraterip::TableOfContents::CreateFromTrackOffsets(trackOffsets);
         accuraterip::ChecksumGenerator checksumGenerator(toc);
         
@@ -304,8 +353,8 @@ int main(int argc, const char * argv[]) {
                 auto title = track->title.value_or("");
                 return (boost::format("%1% - %2% - %3%.flac")
                         % boost::io::group(std::setw(trackNumberDigits), std::setfill('0'), track->number)
-                        % artist
-                        % title).str();
+                        % filenameSafeString(artist)
+                        % filenameSafeString(title)).str();
             }
         }, [&](const std::string& fileName) -> cue::Time {
             return inputFileLengths[fileName];
@@ -364,7 +413,7 @@ int main(int argc, const char * argv[]) {
             
             for (auto inputSegment : outputFile.inputSegments) {
                 FLACLambdaReader reader;
-                auto realFilename = filenameMostSimiliarTo(inputSegment.inputFile, flacFilesInCueDir);
+                auto realFilename = cueSheetFilenameMap[inputSegment.inputFile];
                 reader.init(cueDir + "/" + realFilename);
                 reader.process_until_end_of_metadata();
                 
@@ -408,7 +457,7 @@ int main(int argc, const char * argv[]) {
                                     boost::optional<std::string>(""));
         
         if (isSplittedDifferent) {
-            auto cueFile = outputDir + "/" + albumArtist + " - " + album + ".cue";
+            auto cueFile = outputDir + "/" + filenameSafeString(albumArtist) + " - " + filenameSafeString(album) + ".cue";
             std::cerr << "Writing canonical cuesheet to '" << cueFile << "'" << std::endl;
             std::ofstream cueOutput(cueFile);
             cueOutput << *split.outputSheet;
@@ -417,7 +466,7 @@ int main(int argc, const char * argv[]) {
         
         auto numberOfTracks = trackOffsets.size() - 1;
         
-        auto accurateRipLogFile = outputDir + "/" + albumArtist + " - " + album + ".arlog";
+        auto accurateRipLogFile = outputDir + "/" + filenameSafeString(albumArtist) + " - " + filenameSafeString(album) + ".arlog";
         std::cerr << "Writing AccurateRip log to '" << accurateRipLogFile << "'" << std::endl;
         std::ofstream accurateRipLogFileStream(accurateRipLogFile);
         MultiplexedOutputStream<decltype(std::cout), decltype(accurateRipLogFileStream)>accurateRipLogStream(std::cout, accurateRipLogFileStream);
@@ -476,24 +525,35 @@ int main(int argc, const char * argv[]) {
                     boost::io::group(std::setw(8), std::setfill('0'), std::setbase(16), track.frame450CRC) %
                     center(std::to_string(track.count), 5, ' ')).str();
                 
-                for (auto offset = checksumGenerator.minimumOffset(); offset <= checksumGenerator.maximumOffset(); ++offset) {
-                    if (checksumGenerator.v1ChecksumWithOffset(i, offset) == track.crc) {
-                        accurateRipLogStream << " V1";
-                        if (offset != 0) {
-                            accurateRipLogStream << "(offset=" << offset << ")";
-                        }
-                    }
-                    
-                    if (checksumGenerator.v1Frame450ChecksumWithOffset(i, offset) == track.frame450CRC) {
-                        accurateRipLogStream << " V1_Fr450";
-                        if (offset != 0) {
-                            accurateRipLogStream << "(offset=" << offset << ")";
-                        }
-                    }
+                if (checksumGenerator.v1Frame450ChecksumWithOffset(i, 0) == track.frame450CRC) {
+                    accurateRipLogStream << " V1_Fr450";
+                }
+                if (checksumGenerator.v1ChecksumWithOffset(i, 0) == track.crc) {
+                    accurateRipLogStream << " V1";
                 }
                 if (checksumGenerator.v2Checksum(i) == track.crc) {
                     accurateRipLogStream << " V2";
                 }
+                
+                std::vector<int32_t> v1MatchingOffsets;
+                std::vector<int32_t> v1Frame450MatchingOffsets;
+                
+                for (auto offset = checksumGenerator.minimumOffset(); offset <= checksumGenerator.maximumOffset(); ++offset) {
+                    if (checksumGenerator.v1ChecksumWithOffset(i, offset) == track.crc) {
+                        v1MatchingOffsets.push_back(offset);
+                    }
+                    if (checksumGenerator.v1Frame450ChecksumWithOffset(i, offset) == track.frame450CRC) {
+                        v1Frame450MatchingOffsets.push_back(offset);
+                    }
+                }
+                
+                if (v1MatchingOffsets.size() > 0 && (v1MatchingOffsets.size() > 1 || v1MatchingOffsets[0] != 0)) {
+                    accurateRipLogStream << " V1(offsets: " << createOffsetIntervalsString(v1MatchingOffsets) << ")";
+                }
+                if (v1Frame450MatchingOffsets.size() > 0 && (v1Frame450MatchingOffsets.size() > 1 || v1Frame450MatchingOffsets[0] != 0)) {
+                    accurateRipLogStream << " V1_Fr450(offsets: " << createOffsetIntervalsString(v1Frame450MatchingOffsets) << ")";
+                }
+                
                 accurateRipLogStream << std::endl;
             }
             accurateRipLogStream << std::endl;

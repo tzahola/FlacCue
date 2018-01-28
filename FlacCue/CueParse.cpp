@@ -314,6 +314,10 @@ Split GapsAppendedSplitGenerator::split(const cue::Disc &disc) const {
     }
     
     for (auto track = firstTrack; track != disc.tracksCend(); ++track) {
+        if (track->pregap.get_value_or(0) != 0 && track != firstTrack) {
+            throw std::runtime_error("Track " + std::to_string(track->number) + " has non-zero pregap " + std::to_string(track->pregap.value().samples));
+        }
+        
         SplitOutput currentOutput;
         currentOutput.outputFile = _outputFileNameHandler(*track);
         
@@ -332,6 +336,7 @@ Split GapsAppendedSplitGenerator::split(const cue::Disc &disc) const {
             outputSheetTrack.performer = track->performer;
             outputSheetTrack.songwriter = track->songwriter;
             outputSheetTrack.title = track->title;
+            outputSheetTrack.pregap = track->pregap;
         }
         
         bool hasNextTrack = (track + 1) != disc.tracksCend();
