@@ -474,14 +474,16 @@ int main(int argc, const char * argv[]) {
         accurateRipLogStream << "Audio checksums:" << std::endl;
         accurateRipLogStream << " #         TOC           V1    V1_Fr450    V2" << std::endl;
         for (auto i = 0; i < numberOfTracks; ++i) {
-            accurateRipLogStream
-            << (boost::format("%1%: %2% %3% %4% %5%") %
-                boost::io::group(std::setw(2), std::setfill('0'), i + 1) %
-                (msfString(toc[i].startOffset) + '-' + msfString(toc[i+1].startOffset - cue::Time(0,0,1))) %
-                boost::io::group(std::setw(8), std::setfill('0'), std::setbase(16), checksumGenerator.v1ChecksumWithOffset(i, 0)) %
-                boost::io::group(std::setw(8), std::setfill('0'), std::setbase(16), checksumGenerator.v1Frame450ChecksumWithOffset(i, 0)) %
-                boost::io::group(std::setw(8), std::setfill('0'), std::setbase(16), checksumGenerator.v2Checksum(i))).str()
-            << std::endl;
+            accurateRipLogStream << (boost::format("%1%: ") % boost::io::group(std::setw(2), std::setfill('0'), i + 1));
+            accurateRipLogStream << (msfString(toc[i].startOffset) + '-' + msfString(toc[i+1].startOffset - cue::Time(0,0,1))) << " ";
+            accurateRipLogStream << (boost::format("%1% ") % boost::io::group(std::setw(8), std::setfill('0'), std::setbase(16), checksumGenerator.v1ChecksumWithOffset(i, 0)));
+            if (checksumGenerator.hasV1Frame450Checksum(i)) {
+                accurateRipLogStream << (boost::format("%1% ") % boost::io::group(std::setw(8), std::setfill('0'), std::setbase(16), checksumGenerator.v1Frame450ChecksumWithOffset(i, 0)));
+            } else {
+                accurateRipLogStream << "-------- ";
+            }
+            accurateRipLogStream << (boost::format("%1% ") % boost::io::group(std::setw(8), std::setfill('0'), std::setbase(16), checksumGenerator.v2Checksum(i)));
+            accurateRipLogStream << std::endl;
         }
         accurateRipLogStream << std::endl;
         
@@ -525,7 +527,8 @@ int main(int argc, const char * argv[]) {
                     boost::io::group(std::setw(8), std::setfill('0'), std::setbase(16), track.frame450CRC) %
                     center(std::to_string(track.count), 5, ' ')).str();
                 
-                if (checksumGenerator.v1Frame450ChecksumWithOffset(i, 0) == track.frame450CRC) {
+                if (checksumGenerator.hasV1Frame450Checksum(i) &&
+                    checksumGenerator.v1Frame450ChecksumWithOffset(i, 0) == track.frame450CRC) {
                     accurateRipLogStream << " V1_Fr450";
                 }
                 if (checksumGenerator.v1ChecksumWithOffset(i, 0) == track.crc) {
@@ -542,7 +545,8 @@ int main(int argc, const char * argv[]) {
                     if (checksumGenerator.v1ChecksumWithOffset(i, offset) == track.crc) {
                         v1MatchingOffsets.push_back(offset);
                     }
-                    if (checksumGenerator.v1Frame450ChecksumWithOffset(i, offset) == track.frame450CRC) {
+                    if (checksumGenerator.hasV1Frame450Checksum(i) &&
+                        checksumGenerator.v1Frame450ChecksumWithOffset(i, offset) == track.frame450CRC) {
                         v1Frame450MatchingOffsets.push_back(offset);
                     }
                 }

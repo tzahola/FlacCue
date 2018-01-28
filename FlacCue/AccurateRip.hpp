@@ -125,11 +125,9 @@ public:
     static TableOfContents CreateFromTrackLengths(const std::vector<Time>& trackLengths, const Time& firstTrackOffset = 0) throw(InvalidTOCException) {
         if (trackLengths.size() > 99) {
             throw InvalidTOCException((boost::format("A disc can contain at most 99 tracks. (instead of %1%)") % trackLengths.size()).str());
-        }
-        if (trackLengths.empty()) {
+        } else if (trackLengths.empty()) {
             throw InvalidTOCException("The TOC must not be empty!");
-        }
-        if (!firstTrackOffset.isFrameBoundary()) {
+        } else if (!firstTrackOffset.isFrameBoundary()) {
             throw InvalidTOCException((boost::format("First track offset '%1%' is not a frame boundary!") % firstTrackOffset).str());
         }
         
@@ -139,6 +137,8 @@ public:
         for (auto trackLength : trackLengths) {
             if (!trackLength.isFrameBoundary()) {
                 throw InvalidTOCException((boost::format("Track length '%1%' is not a frame boundary!") % trackLength).str());
+            } else if (trackLength < Time(0, 4, 0)) {
+                throw InvalidTOCException((boost::format("Firbidden track length of '%1%'! (less than 4 seconds)") % trackLength).str());
             }
             result._entries.push_back({
                 result._entries.rbegin()->trackNumber + 1,
@@ -175,6 +175,10 @@ public:
     cue::Time trackLengthAt(int track) const {
         assert(track >= 0 && track < numberOfEntries() - 1);
         return (*this)[track + 1].startOffset - (*this)[track].startOffset;
+    }
+    
+    cue::Time totalLength() const {
+        return _entries.crbegin()->startOffset - _entries.cbegin()->startOffset;
     }
 };
 
@@ -392,26 +396,7 @@ class ChecksumGenerator {
     V1ChecksumGenerator _v1ChecksumGenerator;
     V1ChecksumGenerator _v1Frame450ChecksumGenerator;
     V2ChecksumGenerator _v2ChecksumGenerator;
-    
-public:
-    const std::string accurateRipDataURL;
-    const int32_t _minimumOffset;
-    const int32_t _maximumOffset;
-    
-    int32_t minimumOffset() const { return _minimumOffset; }
-    int32_t maximumOffset() const { return _maximumOffset; }
-    
-    TrackCRC v1ChecksumWithOffset(int track, int32_t offset) const {
-        return _v1ChecksumGenerator.checksumWithOffset(track, offset);
-    }
-    
-    TrackCRC v1Frame450ChecksumWithOffset(int track, int32_t offset) const {
-        return _v1Frame450ChecksumGenerator.checksumWithOffset(track, offset);
-    }
-    
-    TrackCRC v2Checksum(int track) const {
-        return _v2ChecksumGenerator.checksum(track);
-    }
+    int32_t _samplesProcessed;
     
     static std::vector<uint32_t> calculateFirstSampleIndexesForV1Checksum(const TableOfContents& toc) {
         auto numberOfTracks = toc.numberOfEntries() - 1;
@@ -478,6 +463,42 @@ public:
         return calculateFirstSampleMultipliersForV1Checksum(toc);
     }
     
+    void ensureDone() const {
+        if (_samplesProcessed != _toc.totalLength().samples) {
+            throw std::runtime_error("Received samples (" + std::to_string(_samplesProcessed) + ") "
+                                     "less than indicated by the TOC (" + std::to_string(_toc.totalLength().samples) + ")");
+        }
+    }
+public:
+    const std::string accurateRipDataURL;
+    const int32_t _minimumOffset;
+    const int32_t _maximumOffset;
+    
+    int32_t minimumOffset() const { return _minimumOffset; }
+    int32_t maximumOffset() const { return _maximumOffset; }
+    
+    TrackCRC v1ChecksumWithOffset(int track, int32_t offset) const {
+        ensureDone();
+        return _v1ChecksumGenerator.checksumWithOffset(track, offset);
+    }
+    
+    bool hasV1Frame450Checksum(int track) const {
+        return !(_toc.trackLengthAt(track) < Time(0, 0, 451));
+    }
+    
+    TrackCRC v1Frame450ChecksumWithOffset(int track, int32_t offset) const {
+        ensureDone();
+        if (!hasV1Frame450Checksum(track)) {
+            throw std::runtime_error("Track " + std::to_string(track) + " is too short for Frame450 checksum!");
+        }
+        return _v1Frame450ChecksumGenerator.checksumWithOffset(track, offset);
+    }
+    
+    TrackCRC v2Checksum(int track) const {
+        ensureDone();
+        return _v2ChecksumGenerator.checksum(track);
+    }
+    
     ChecksumGenerator(const TableOfContents& toc, int32_t minimumOffset = -2939, int32_t maximumOffset = 2940)
     : _toc(toc),
     accurateRipDataURL(calculateARDataURL(toc)),
@@ -498,14 +519,19 @@ public:
     _v2ChecksumGenerator(toc,
                          calculateFirstSampleIndexesForV2Checksum(toc),
                          calculateFirstSampleMultipliersForV2Checksum(toc),
-                         calculateLastSampleIndexesForV2Checksum(toc)) {
-        
+                         calculateLastSampleIndexesForV2Checksum(toc)),
+    _samplesProcessed(0) {
         assert(_minimumOffset <= _maximumOffset);
         assert(_minimumOffset >= -(cue::CdSamplesPerFrame * 5 - 1)); // Backward offset cannot be larger than five frames - 1 samples
         assert(_maximumOffset <= cue::CdSamplesPerFrame * 5); // Forward offset cannot be larger than five frames
     }
     
     void processSamples(int32_t const * const buffer[2], uint32_t count) {
+        _samplesProcessed += count;
+        if (_samplesProcessed > _toc.totalLength().samples) {
+            throw std::runtime_error("Received more samples (" + std::to_string(_samplesProcessed) + ") "
+                                     "than the TOC indicated (" + std::to_string(_toc.totalLength().samples) + ")");
+        }
         _v1ChecksumGenerator.processSamples(buffer, count);
         _v1Frame450ChecksumGenerator.processSamples(buffer, count);
         _v2ChecksumGenerator.processSamples(buffer, count);
