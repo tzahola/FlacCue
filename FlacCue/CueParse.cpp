@@ -68,6 +68,7 @@ Disc::Disc(std::istream& input) throw(ParseError) {
     struct CueCommandList result;
     CueCommandListInit(&result);
     char* error;
+    int errorLine;
     
     struct CueParserExtra extra;
     CueParserReadCallbackContext context { input, false };
@@ -77,7 +78,7 @@ Disc::Disc(std::istream& input) throw(ParseError) {
     yyscan_t scanner;
     cue_lex_init(&scanner);
     cue_set_extra(&extra, scanner);
-    auto status = cue_parse(scanner, &result, &error);
+    auto status = cue_parse(scanner, &result, &error, &errorLine);
     cue_lex_destroy(scanner);
     
     if (status == 0) {
@@ -175,7 +176,7 @@ Disc::Disc(std::istream& input) throw(ParseError) {
         CueCommandListDestroy(&result);
         std::string errorString(error);
         free(error);
-        throw ParseError(errorString);
+        throw ParseError("Line " + std::to_string(errorLine) + ": " + errorString);
     }
 }
 

@@ -3,6 +3,7 @@
 %option bison-bridge
 %option header-file="cue.lex.h"
 %option prefix="cue_"
+%option yylineno
 
 %{
 #include <string.h>
@@ -22,6 +23,8 @@
     int read = yyextra->readCallback(yyextra->context, buffer, max_size); \
     result = read == 0 ? YY_NULL : read; \
 }
+
+#define YY_USER_ACTION llocp->last_line = yylineno;
 
 static char const* charAfterPrefix(char const* string, char const* prefix) {
     char const* prefixStart = strstr(string, prefix);
@@ -168,5 +171,8 @@ TIME ({DIGIT}{2}):({DIGIT}{2}):({DIGIT}{2})
         return TRACK_COMMAND;
     }
 [ \t\r\n]
-.	{ return INVALID_COMMAND; }
+.*	{
+    yylval->invalidCommand = strdup(yytext);
+    return INVALID_COMMAND;
+}
 %%

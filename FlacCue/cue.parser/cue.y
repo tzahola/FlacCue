@@ -11,9 +11,10 @@
 #include "cue.lex.h"
 extern YY_DECL;
 
-void yyerror(YYLTYPE* llocp, void* scanner, struct CueCommandList* result, char** error, char* errorMessage) {
+static void yyerror(YYLTYPE* llocp, void* scanner, struct CueCommandList* result, char** error, int* errorLine, const char* errorMessage) {
     if (error != NULL) {
         *error = strdup(errorMessage);
+        *errorLine = llocp->last_line;
     }
 }
 
@@ -24,24 +25,29 @@ void yyerror(YYLTYPE* llocp, void* scanner, struct CueCommandList* result, char*
 %define parse.error verbose
 %lex-param { void* scanner }
 %locations
-%parse-param { void* scanner } { struct CueCommandList* result } { char** error }
+%parse-param { void* scanner } { struct CueCommandList* result } { char** error } { int* errorLine }
 
-%token INVALID_COMMAND
+%union {
+    struct CueCommand command;
+    char* invalidCommand;
+}
 
-%union { struct CueCommand command; }
+%token<invalidCommand> INVALID_COMMAND
+%destructor { free($$); } INVALID_COMMAND
+
 %token<command> CATALOG_COMMAND
-CDTEXTFILE_COMMAND
-FLAGS_COMMAND
-PERFORMER_COMMAND
-ISRC_COMMAND
-SONGWRITER_COMMAND
-TITLE_COMMAND
-REM_COMMAND
-FILE_COMMAND
-INDEX_COMMAND
-POSTGAP_COMMAND
-PREGAP_COMMAND
-TRACK_COMMAND
+                CDTEXTFILE_COMMAND
+                FLAGS_COMMAND
+                PERFORMER_COMMAND
+                ISRC_COMMAND
+                SONGWRITER_COMMAND
+                TITLE_COMMAND
+                REM_COMMAND
+                FILE_COMMAND
+                INDEX_COMMAND
+                POSTGAP_COMMAND
+                PREGAP_COMMAND
+                TRACK_COMMAND
 %type<command> command
 
 %%
