@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 46;
+	objectVersion = 52;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -28,6 +28,8 @@
 			compilerSpec = com.apple.compilers.proxy.script;
 			filePatterns = "*.parser";
 			fileType = pattern.proxy;
+			inputFiles = (
+			);
 			isEditable = 1;
 			outputFiles = (
 				"$(DERIVED_FILE_DIR)/$(INPUT_FILE_BASE).lex.c",
@@ -35,6 +37,7 @@
 				"$(DERIVED_FILE_DIR)/$(INPUT_FILE_BASE).tab.c",
 				"$(DERIVED_FILE_DIR)/$(INPUT_FILE_BASE).tab.h",
 			);
+			runOncePerArchitecture = 0;
 			script = "source ~/.bash_profile\n\ncd \"$DERIVED_FILE_DIR\"\nbison -d -o \"$INPUT_FILE_BASE.tab.c\" \"$INPUT_FILE_DIR/$INPUT_FILE_NAME/$INPUT_FILE_BASE.y\"\nflex --nowarn -o \"$INPUT_FILE_BASE.lex.c\" \"$INPUT_FILE_DIR/$INPUT_FILE_NAME/$INPUT_FILE_BASE.l\"\n";
 		};
 /* End PBXBuildRule section */
@@ -292,6 +295,7 @@
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				English,
 				en,
 			);
 			mainGroup = 678363BB1C3459D600193929;
@@ -491,10 +495,10 @@
 				FRAMEWORK_VERSION = A;
 				INFOPLIST_FILE = FlacCue/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
-				LIBRARY_SEARCH_PATHS = (
-					"$(FLAC_LIB)",
+				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.zahola.FlacCue;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -517,10 +521,10 @@
 				FRAMEWORK_VERSION = A;
 				INFOPLIST_FILE = FlacCue/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/Frameworks";
-				LIBRARY_SEARCH_PATHS = (
-					"$(FLAC_LIB)",
+				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.zahola.FlacCue;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -533,6 +537,7 @@
 		67E00B7D1C4D8B7700BA13DA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = x86_64;
 				LD_RUNPATH_SEARCH_PATHS = .;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
@@ -545,6 +550,7 @@
 		67E00B7E1C4D8B7700BA13DA /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = x86_64;
 				LD_RUNPATH_SEARCH_PATHS = .;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
