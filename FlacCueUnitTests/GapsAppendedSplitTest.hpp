@@ -39,8 +39,8 @@ struct GapsAppendedSplitTestFixture {
         {"inputFile4", cue::Time(4,0,0)},
         {"inputFile5", cue::Time(5,0,0)}
     }) {
-        testOutputFileNameHandler = [&](const boost::optional<const cue::Track&> track) {
-            return testFileNames[track == boost::none ? 0 : track.value().number];
+        testOutputFileNameHandler = [&](const cue::Track* track) {
+            return testFileNames[track ? track->number : 0];
         };
         testInputFileDurationHandler = [&](const std::string& fileName) {
             return testFileDurations[fileName];
@@ -98,7 +98,7 @@ BOOST_AUTO_TEST_CASE(SingleFileImage) {
         BOOST_CHECK_EQUAL(output.inputSegments.size(), 1);
         BOOST_CHECK_EQUAL(output.inputSegments[0].inputFile, "inputFile1");
         BOOST_CHECK_EQUAL(output.inputSegments[0].begin, cue::Time(0,20,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[0].end, boost::none);
+        BOOST_CHECK_EQUAL(output.inputSegments[0].end, std::nullopt);
     }
     
     BOOST_CHECK_EQUAL(split.outputSheet->filesCend() - split.outputSheet->filesCbegin(), 3);
@@ -184,7 +184,7 @@ BOOST_AUTO_TEST_CASE(SingleFileImageWithGaps) {
         BOOST_CHECK_EQUAL(output.inputSegments.size(), 1);
         BOOST_CHECK_EQUAL(output.inputSegments[0].inputFile, "inputFile1");
         BOOST_CHECK_EQUAL(output.inputSegments[0].begin, cue::Time(0,50,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[0].end, boost::none);
+        BOOST_CHECK_EQUAL(output.inputSegments[0].end, std::nullopt);
     }
     
     BOOST_CHECK_EQUAL(split.outputSheet->filesCend() - split.outputSheet->filesCbegin(), 4);
@@ -263,7 +263,7 @@ BOOST_AUTO_TEST_CASE(MultipleFilesGapsAppended) {
         BOOST_CHECK_EQUAL(output.inputSegments.size(), 1);
         BOOST_CHECK_EQUAL(output.inputSegments[0].inputFile, "outputFile1");
         BOOST_CHECK_EQUAL(output.inputSegments[0].begin, cue::Time(0,0,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[0].end, boost::none);
+        BOOST_CHECK_EQUAL(output.inputSegments[0].end, std::nullopt);
     }
     {
         auto output = split.outputFiles[1];
@@ -271,7 +271,7 @@ BOOST_AUTO_TEST_CASE(MultipleFilesGapsAppended) {
         BOOST_CHECK_EQUAL(output.inputSegments.size(), 1);
         BOOST_CHECK_EQUAL(output.inputSegments[0].inputFile, "outputFile2");
         BOOST_CHECK_EQUAL(output.inputSegments[0].begin, cue::Time(0,0,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[0].end, boost::none);
+        BOOST_CHECK_EQUAL(output.inputSegments[0].end, std::nullopt);
     }
     {
         auto output = split.outputFiles[2];
@@ -279,7 +279,7 @@ BOOST_AUTO_TEST_CASE(MultipleFilesGapsAppended) {
         BOOST_CHECK_EQUAL(output.inputSegments.size(), 1);
         BOOST_CHECK_EQUAL(output.inputSegments[0].inputFile, "outputFile3");
         BOOST_CHECK_EQUAL(output.inputSegments[0].begin, cue::Time(0,0,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[0].end, boost::none);
+        BOOST_CHECK_EQUAL(output.inputSegments[0].end, std::nullopt);
     }
     
     checkDiscsAreEqual(disc, *split.outputSheet);
@@ -320,7 +320,7 @@ BOOST_AUTO_TEST_CASE(MultipleFilesGapsPrepended) {
         BOOST_CHECK_EQUAL(output.inputSegments.size(), 2);
         BOOST_CHECK_EQUAL(output.inputSegments[0].inputFile, "inputFile1");
         BOOST_CHECK_EQUAL(output.inputSegments[0].begin, cue::Time(0,10,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[0].end, boost::none);
+        BOOST_CHECK_EQUAL(output.inputSegments[0].end, std::nullopt);
         BOOST_CHECK_EQUAL(output.inputSegments[1].inputFile, "inputFile2");
         BOOST_CHECK_EQUAL(output.inputSegments[1].begin, cue::Time(0,0,0));
         BOOST_CHECK_EQUAL(output.inputSegments[1].end, cue::Time(0,10,0));
@@ -331,7 +331,7 @@ BOOST_AUTO_TEST_CASE(MultipleFilesGapsPrepended) {
         BOOST_CHECK_EQUAL(output.inputSegments.size(), 2);
         BOOST_CHECK_EQUAL(output.inputSegments[0].inputFile, "inputFile2");
         BOOST_CHECK_EQUAL(output.inputSegments[0].begin, cue::Time(0,10,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[0].end, boost::none);
+        BOOST_CHECK_EQUAL(output.inputSegments[0].end, std::nullopt);
         BOOST_CHECK_EQUAL(output.inputSegments[1].inputFile, "inputFile3");
         BOOST_CHECK_EQUAL(output.inputSegments[1].begin, cue::Time(0,0,0));
         BOOST_CHECK_EQUAL(output.inputSegments[1].end, cue::Time(0,10,0));
@@ -342,7 +342,7 @@ BOOST_AUTO_TEST_CASE(MultipleFilesGapsPrepended) {
         BOOST_CHECK_EQUAL(output.inputSegments.size(), 1);
         BOOST_CHECK_EQUAL(output.inputSegments[0].inputFile, "inputFile3");
         BOOST_CHECK_EQUAL(output.inputSegments[0].begin, cue::Time(0,10,0));
-        BOOST_CHECK_EQUAL(output.inputSegments[0].end, boost::none);
+        BOOST_CHECK_EQUAL(output.inputSegments[0].end, std::nullopt);
     }
     
     BOOST_CHECK_EQUAL(split.outputSheet->filesCend() - split.outputSheet->filesCbegin(), 4);

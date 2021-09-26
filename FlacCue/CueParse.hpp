@@ -13,10 +13,9 @@
 #include <tuple>
 #include <string>
 #include <vector>
-#include <boost/optional.hpp>
+#include <optional>
 
 namespace cue {
-using namespace boost;
     
 int const CdFramesPerSecond = 75;
 int const CdSamplesPerFrame = 588;
@@ -26,7 +25,7 @@ struct Time {
     long long samples;
 
     Time(long long samples = 0) : samples(samples) {}
-    Time(std::tuple<int,int,int> cueTime) : Time(get<0>(cueTime), get<1>(cueTime), get<2>(cueTime)) {}
+    Time(std::tuple<int,int,int> cueTime) : Time(std::get<0>(cueTime), std::get<1>(cueTime), std::get<2>(cueTime)) {}
     Time(int minutes, int seconds, int frames)
     : samples(((minutes * 60 + seconds) * CdFramesPerSecond + frames) * CdSamplesPerFrame) {}
     
@@ -90,13 +89,13 @@ public:
     
     std::string dataType;
     int number;
-    optional<std::string> performer;
-    optional<std::string> title;
-    optional<std::string> songwriter;
-    optional<std::string> isrc;
-    optional<std::string> flags;
-    optional<Time> pregap;
-    optional<Time> postgap;
+    std::optional<std::string> performer;
+    std::optional<std::string> title;
+    std::optional<std::string> songwriter;
+    std::optional<std::string> isrc;
+    std::optional<std::string> flags;
+    std::optional<Time> pregap;
+    std::optional<Time> postgap;
     std::vector<std::string> comments;
     
     IndexIterator indexesBegin() { return _indexes.begin(); }
@@ -128,13 +127,13 @@ public:
     using ConstTrackIterator = TrackCollection::const_iterator;
     
     std::vector<std::string> comments;
-    optional<std::string> catalog;
-    optional<std::string> cdTextFile;
-    optional<std::string> performer;
-    optional<std::string> title;
-    optional<std::string> songwriter;
+    std::optional<std::string> catalog;
+    std::optional<std::string> cdTextFile;
+    std::optional<std::string> performer;
+    std::optional<std::string> title;
+    std::optional<std::string> songwriter;
     
-    Disc(std::istream& input) throw(ParseError);
+    Disc(std::istream& input) noexcept(false);
     
     Disc() = default;
     Disc(const Disc& disc) = delete;
@@ -166,7 +165,7 @@ std::ostream& operator<<(std::ostream& o, const Disc& disc);
 struct SplitInputSegment {
     std::string inputFile;
     Time begin;
-    optional<Time> end;
+    std::optional<Time> end;
 };
     
 struct SplitOutput {
@@ -186,7 +185,7 @@ public:
     
 class GapsAppendedSplitGenerator : public SplitGenerator {
 public:
-    using OutputFileNameHandler = std::function<std::string(const optional<const Track&> track)>; // boost::none means HTOA
+    using OutputFileNameHandler = std::function<std::string(const Track* track)>; // nullptr means HTOA
     using InputFileDurationHandler = std::function<Time(const std::string& fileName)>;
     
 private:

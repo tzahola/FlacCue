@@ -73,7 +73,7 @@ class Data {
 public:
     std::vector<Disc> discs;
     
-    Data(std::istream& stream) throw(ParseError) {
+    Data(std::istream& stream) noexcept(false) {
         uint8_t trackCount;
         DiscID1 discId1;
         DiscID2 discId2;
@@ -122,7 +122,7 @@ class TableOfContents {
 public:
     using ConstEntryIterator = decltype(_entries)::const_iterator;
     
-    static TableOfContents CreateFromTrackLengths(const std::vector<Time>& trackLengths, const Time& firstTrackOffset = 0) throw(InvalidTOCException) {
+    static TableOfContents CreateFromTrackLengths(const std::vector<Time>& trackLengths, const Time& firstTrackOffset = 0) noexcept(false) {
         if (trackLengths.size() > 99) {
             throw InvalidTOCException((boost::format("A disc can contain at most 99 tracks. (instead of %1%)") % trackLengths.size()).str());
         } else if (trackLengths.empty()) {

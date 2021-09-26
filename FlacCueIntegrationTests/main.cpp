@@ -122,15 +122,15 @@ static cue::Time readFileLength(const std::string& path) {
     return result;
 }
 
-template<typename T> T fallback(const boost::optional<T>& lastResort) {
+template<typename T> T fallback(const std::optional<T>& lastResort) {
     return lastResort.value();
 }
 
-template<typename T, typename ... Targs> T fallback(const boost::optional<T>& x, const boost::optional<Targs>&... args) {
-    if (x == boost::none) {
+template<typename T, typename ... Targs> T fallback(const std::optional<T>& x, const std::optional<Targs>&... args) {
+    if (x) {
         return fallback(args...);
     } else {
-        return x.value();
+        return *x;
     }
 }
 
@@ -192,7 +192,7 @@ static std::vector<cue::Time> createTOC(const cue::Disc& disc, const std::unorde
     std::vector<cue::Time> toc;
     
     cue::File const* currentFile = nullptr;
-    cue::Time currentFileBeginTime = fallback(disc.tracksCbegin()->pregap, boost::optional<cue::Time>(0));
+    cue::Time currentFileBeginTime = disc.tracksCbegin()->pregap.value_or(0);
     for_each(disc.tracksCbegin(), disc.tracksCend(), [&](const cue::Track& track) {
         for_each(track.indexesCbegin(), track.indexesCend(), [&](const cue::Index& index) {
             if (&index.file() != currentFile) {
@@ -200,7 +200,7 @@ static std::vector<cue::Time> createTOC(const cue::Disc& disc, const std::unorde
                 currentFile = &index.file();
             }
             if (index.index == 1) {
-                if (track.pregap != boost::none && track.pregap.value() > 0 && track.number != 1) {
+                if (track.pregap && *track.pregap > 0 && track.number != 1) {
                     throw "Non-zero pregap (" + (std::stringstream() << track.pregap.value()).str() + ") on track " + std::to_string(track.number);
                 }
                 toc.push_back(currentFileBeginTime + index.begin);
@@ -345,11 +345,11 @@ int main(int argc, const char * argv[]) {
         auto toc = accuraterip::TableOfContents::CreateFromTrackOffsets(trackOffsets);
         accuraterip::ChecksumGenerator checksumGenerator(toc);
         
-        cue::GapsAppendedSplitGenerator splitter([&](const boost::optional<const cue::Track&> track) -> std::string {
-            if (track == boost::none) {
+        cue::GapsAppendedSplitGenerator splitter([&](const cue::Track* track) -> std::string {
+            if (!track) {
                 return (boost::format("%1% - HTOA.flac") % boost::io::group(std::setw(trackNumberDigits), std::setfill('0'), 0)).str();
             } else {
-                auto artist = fallback(track->performer, track->songwriter, disc->performer, disc->songwriter, boost::optional<std::string>(""));
+                auto artist = fallback(track->performer, track->songwriter, disc->performer, disc->songwriter, std::optional<std::string>(""));
                 auto title = track->title.value_or("");
                 return (boost::format("%1% - %2% - %3%.flac")
                         % boost::io::group(std::setw(trackNumberDigits), std::setfill('0'), track->number)
@@ -375,7 +375,7 @@ int main(int argc, const char * argv[]) {
                 break;
             }
             
-            if (inputSegment.end != boost::none && inputSegment.end != inputFileLengths[inputSegment.inputFile]) {
+            if (inputSegment.end && inputSegment.end != inputFileLengths[inputSegment.inputFile]) {
                 isSplittedDifferent = true;
                 break;
             }
@@ -449,12 +449,12 @@ int main(int argc, const char * argv[]) {
             }
         }
 
-        auto album = fallback(split.outputSheet->title, boost::optional<std::string>(""));
+        auto album = split.outputSheet->title.value_or("");
         auto albumArtist = fallback(split.outputSheet->performer,
                                     split.outputSheet->songwriter,
                                     split.outputSheet->tracksCbegin()->performer,
                                     split.outputSheet->tracksCbegin()->songwriter,
-                                    boost::optional<std::string>(""));
+                                    std::optional<std::string>(""));
         
         if (isSplittedDifferent) {
             auto cueFile = outputDir + "/" + filenameSafeString(albumArtist) + " - " + filenameSafeString(album) + ".cue";

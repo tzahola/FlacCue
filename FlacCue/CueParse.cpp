@@ -70,7 +70,7 @@ void Index::setFile(const File& file) {
     _file = static_cast<int>(&file - &(*_disc->filesBegin()));
 }
     
-Disc::Disc(std::istream& input) throw(ParseError) {
+Disc::Disc(std::istream& input) noexcept(false) {
     
     struct CueCommandList result;
     CueCommandListInit(&result);
@@ -189,7 +189,7 @@ Disc::Disc(std::istream& input) throw(ParseError) {
 
 static std::string escape(const std::string& s) {
     auto result = s;
-    replace_all(result, "\"", "\\\"");
+    boost::replace_all(result, "\"", "\\\"");
     return '"' + result + '"';
 }
     
@@ -221,7 +221,7 @@ std::ostream& operator<<(std::ostream& o, const Disc& disc) {
             o << "FILE " << escape(currentFile->path) << " " << currentFile->fileType << std::endl;
         }
         
-        o << "  TRACK " << io::group(std::setw(2), std::setfill('0'), track->number) << " " << track->dataType << std::endl;
+        o << "  TRACK " << boost::io::group(std::setw(2), std::setfill('0'), track->number) << " " << track->dataType << std::endl;
         
         for (auto comment : track->comments) {
             o << "    REM " << comment << std::endl;
@@ -253,7 +253,7 @@ std::ostream& operator<<(std::ostream& o, const Disc& disc) {
                 currentFile = &index->file();
                 o << "FILE " << escape(currentFile->path) << " " << currentFile->fileType << std::endl;
             }
-            o << "    INDEX " << io::group(std::setw(2), std::setfill('0'), index->index) << " " << index->begin << std::endl;
+            o << "    INDEX " << boost::io::group(std::setw(2), std::setfill('0'), index->index) << " " << index->begin << std::endl;
             
             for (auto comment : index->comments) {
                 o << "      REM " << comment << std::endl;
@@ -294,11 +294,11 @@ Split GapsAppendedSplitGenerator::split(const cue::Disc &disc) const {
         if (nextIndexUsesTheSameFile) {
             inputSegment.end = nextIndex->begin;
         } else {
-            inputSegment.end = none;
+            inputSegment.end = std::nullopt;
         }
         
         SplitOutput htoa;
-        htoa.outputFile = _outputFileNameHandler(none);
+        htoa.outputFile = _outputFileNameHandler(nullptr);
         htoa.inputSegments.push_back(inputSegment);
         
         result.outputFiles.push_back(htoa);
@@ -325,7 +325,7 @@ Split GapsAppendedSplitGenerator::split(const cue::Disc &disc) const {
     }
     
     for (auto track = firstTrack; track != disc.tracksCend(); ++track) {
-        if (track->pregap.get_value_or(0) != 0 && track != firstTrack) {
+        if (track->pregap.value_or(0) != 0 && track != firstTrack) {
             throw std::runtime_error("Track " + std::to_string(track->number) + " has non-zero pregap " + std::to_string(track->pregap.value().samples));
         }
         
@@ -347,12 +347,12 @@ Split GapsAppendedSplitGenerator::split(const cue::Disc &disc) const {
             
             auto& index = *track->indexesCbegin();
             auto& outputSheetIndex = outputSheetTrack.addIndex();
-            outputSheetIndex.begin = result.outputFiles.rbegin()->inputSegments.rbegin()->end.get();
+            outputSheetIndex.begin = result.outputFiles.rbegin()->inputSegments.rbegin()->end.value();
             outputSheetIndex.comments = index.comments;
             outputSheetIndex.index = index.index;
         } else {
             SplitOutput currentOutput;
-            currentOutput.outputFile = _outputFileNameHandler(*track);
+            currentOutput.outputFile = _outputFileNameHandler(&*track);
             
             auto& outputSheetFile = result.outputSheet->addFile();
             outputSheetFile.path = currentOutput.outputFile;
@@ -414,7 +414,7 @@ Split GapsAppendedSplitGenerator::split(const cue::Disc &disc) const {
                 SplitInputSegment inputSegment;
                 inputSegment.inputFile = file.path;
                 inputSegment.begin = index->begin;
-                inputSegment.end = none;
+                inputSegment.end = std::nullopt;
                 if (isNextTracksZeroIndex || (index + 1) != track->indexesCend()) {
                     auto nextIndex = index + 1;
                     if (&nextIndex->file() == &file) {

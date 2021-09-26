@@ -9,11 +9,26 @@
 #ifndef TestUtils_h
 #define TestUtils_h
 
+#include <iostream>
 #include <boost/test/unit_test.hpp>
-#include <boost/optional/optional_io.hpp>
 #include <boost/iterator/zip_iterator.hpp>
 
 #include "FlacCue.h"
+
+namespace std {
+    std::ostream& operator<<(std::ostream& os, const std::nullopt_t& _) {
+        return os << "std::nullopt";
+    }
+
+    template<typename T>
+    std::ostream& operator<<(std::ostream& os, const std::optional<T>& t) {
+        if (t) {
+            return os << *t;
+        } else {
+            return os << std::nullopt;
+        }
+    }
+}
 
 static void checkFilesEqual(const cue::File& file1, const cue::File& file2) {
     BOOST_CHECK_EQUAL(file1.path, file2.path);

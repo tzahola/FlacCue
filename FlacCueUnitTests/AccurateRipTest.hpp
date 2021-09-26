@@ -107,56 +107,56 @@ static inline void checkTableOfContentsEntriesEqual(const accuraterip::TableOfCo
 
 BOOST_AUTO_TEST_CASE(TableOfContentsFromTrackLengths) {
     std::vector<accuraterip::Time> trackLengths = {
-        accuraterip::Time(0,0,1),
-        accuraterip::Time(0,0,2),
-        accuraterip::Time(0,0,3)
+        accuraterip::Time(1,0,0),
+        accuraterip::Time(2,0,0),
+        accuraterip::Time(3,0,0)
     };
-    accuraterip::TableOfContents toc = accuraterip::TableOfContents::CreateFromTrackLengths(trackLengths, accuraterip::Time(0,0,1));
+    accuraterip::TableOfContents toc = accuraterip::TableOfContents::CreateFromTrackLengths(trackLengths, accuraterip::Time(1,0,0));
     
     BOOST_CHECK_EQUAL(toc.numberOfEntries(), 4);
-    checkTableOfContentsEntriesEqual(toc[0], { 1, accuraterip::Time(0,0,1) });
-    checkTableOfContentsEntriesEqual(toc[1], { 2, accuraterip::Time(0,0,2) });
-    checkTableOfContentsEntriesEqual(toc[2], { 3, accuraterip::Time(0,0,4) });
-    checkTableOfContentsEntriesEqual(toc[3], { accuraterip::LeadOutTrack, accuraterip::Time(0,0,7) });
+    checkTableOfContentsEntriesEqual(toc[0], { 1, accuraterip::Time(1,0,0) });
+    checkTableOfContentsEntriesEqual(toc[1], { 2, accuraterip::Time(2,0,0) });
+    checkTableOfContentsEntriesEqual(toc[2], { 3, accuraterip::Time(4,0,0) });
+    checkTableOfContentsEntriesEqual(toc[3], { accuraterip::LeadOutTrack, accuraterip::Time(7,0,0) });
 }
 
 BOOST_AUTO_TEST_CASE(TableOfContentsFromTrackLengthsWithDefaultFirstTrackOffset) {
     std::vector<accuraterip::Time> trackLengths = {
-        accuraterip::Time(0,0,1),
-        accuraterip::Time(0,0,2),
-        accuraterip::Time(0,0,3)
+        accuraterip::Time(1,0,0),
+        accuraterip::Time(2,0,0),
+        accuraterip::Time(3,0,0)
     };
     accuraterip::TableOfContents toc = accuraterip::TableOfContents::CreateFromTrackLengths(trackLengths);
     
     BOOST_CHECK_EQUAL(toc.numberOfEntries(), 4);
     checkTableOfContentsEntriesEqual(toc[0], { 1, accuraterip::Time(0,0,0) });
-    checkTableOfContentsEntriesEqual(toc[1], { 2, accuraterip::Time(0,0,1) });
-    checkTableOfContentsEntriesEqual(toc[2], { 3, accuraterip::Time(0,0,3) });
-    checkTableOfContentsEntriesEqual(toc[3], { accuraterip::LeadOutTrack, accuraterip::Time(0,0,6) });
+    checkTableOfContentsEntriesEqual(toc[1], { 2, accuraterip::Time(1,0,0) });
+    checkTableOfContentsEntriesEqual(toc[2], { 3, accuraterip::Time(3,0,0) });
+    checkTableOfContentsEntriesEqual(toc[3], { accuraterip::LeadOutTrack, accuraterip::Time(6,0,0) });
 }
 
 BOOST_AUTO_TEST_CASE(TableOfContentsFromStartOffsets) {
     std::vector<accuraterip::Time> startOffsets = {
-        accuraterip::Time(0,0,1),
-        accuraterip::Time(0,0,2),
-        accuraterip::Time(0,0,3)
+        accuraterip::Time(1,0,0),
+        accuraterip::Time(2,0,0),
+        accuraterip::Time(3,0,0)
     };
     accuraterip::TableOfContents toc = accuraterip::TableOfContents::CreateFromTrackOffsets(startOffsets);
     
     BOOST_CHECK_EQUAL(toc.numberOfEntries(), 3);
-    checkTableOfContentsEntriesEqual(toc[0], { 1, accuraterip::Time(0,0,1) });
-    checkTableOfContentsEntriesEqual(toc[1], { 2, accuraterip::Time(0,0,2) });
-    checkTableOfContentsEntriesEqual(toc[2], { accuraterip::LeadOutTrack, accuraterip::Time(0,0,3) });
+    checkTableOfContentsEntriesEqual(toc[0], { 1, accuraterip::Time(1,0,0) });
+    checkTableOfContentsEntriesEqual(toc[1], { 2, accuraterip::Time(2,0,0) });
+    checkTableOfContentsEntriesEqual(toc[2], { accuraterip::LeadOutTrack, accuraterip::Time(3,0,0) });
 }
 
 BOOST_AUTO_TEST_CASE(TableOfContentsErrors) {
     std::vector<accuraterip::Time> invalidStartOffsets = {
-        accuraterip::Time(0,0,1),
-        accuraterip::Time(0,0,2),
-        accuraterip::Time(0,0,3) + 1
+        accuraterip::Time(1,0,0),
+        accuraterip::Time(2,0,0),
+        accuraterip::Time(3,0,0) + 1
     };
     std::vector<accuraterip::Time> tooFewStartOffsets = {
-        accuraterip::Time(0,0,1)
+        accuraterip::Time(1,0,0)
     };
     BOOST_CHECK_THROW(accuraterip::TableOfContents::CreateFromTrackOffsets(invalidStartOffsets),
                       accuraterip::InvalidTOCException);
@@ -166,16 +166,16 @@ BOOST_AUTO_TEST_CASE(TableOfContentsErrors) {
                       accuraterip::InvalidTOCException);
     
     std::vector<accuraterip::Time> invalidTrackLengths = {
-        accuraterip::Time(0,0,1),
-        accuraterip::Time(0,0,2) + 1,
-        accuraterip::Time(0,0,3)
+        accuraterip::Time(1,0,0),
+        accuraterip::Time(2,0,0) + 1,
+        accuraterip::Time(3,0,0)
     };
     std::vector<accuraterip::Time> validTrackLengths = {
-        accuraterip::Time(0,0,1),
-        accuraterip::Time(0,0,2),
-        accuraterip::Time(0,0,3)
+        accuraterip::Time(1,0,0),
+        accuraterip::Time(2,0,0),
+        accuraterip::Time(3,0,0)
     };
-    accuraterip::Time invalidFirstTrackOffset = accuraterip::Time(0,0,1) + 1;
+    accuraterip::Time invalidFirstTrackOffset = accuraterip::Time(1,0,0) + 1;
     accuraterip::Time validFirstTrackOffset = 0;
     BOOST_CHECK_THROW(accuraterip::TableOfContents::CreateFromTrackLengths(invalidTrackLengths, validFirstTrackOffset),
                       accuraterip::InvalidTOCException);
