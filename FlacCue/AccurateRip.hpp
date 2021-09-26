@@ -138,7 +138,7 @@ public:
             if (!trackLength.isFrameBoundary()) {
                 throw InvalidTOCException((boost::format("Track length '%1%' is not a frame boundary!") % trackLength).str());
             } else if (trackLength < Time(0, 4, 0)) {
-                throw InvalidTOCException((boost::format("Firbidden track length of '%1%'! (less than 4 seconds)") % trackLength).str());
+                throw InvalidTOCException((boost::format("Forbidden track length of '%1%'! (less than 4 seconds)") % trackLength).str());
             }
             result._entries.push_back({
                 result._entries.rbegin()->trackNumber + 1,

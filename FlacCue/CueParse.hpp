@@ -54,6 +54,8 @@ struct Time {
     
 std::ostream& operator<<(std::ostream& o, const Time& t);
     
+std::string to_string(const Time& t);
+    
 class File {
 public:
     std::string path;

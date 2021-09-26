@@ -8,6 +8,7 @@
 
 #include "CueParse.hpp"
 
+#include <sstream>
 #include <iomanip>
 #include <math.h>
 #include <boost/format.hpp>
@@ -52,6 +53,12 @@ std::ostream& operator<<(std::ostream& o, const Time& t) {
     << std::setfill('0') << std::setw(2) << std::get<0>(components) << ':'
     << std::setfill('0') << std::setw(2) << std::get<1>(components) << ':'
     << std::setfill('0') << std::setw(2) << std::get<2>(components);
+}
+    
+std::string to_string(const Time& t) {
+    std::ostringstream s;
+    s << t;
+    return s.str();
 }
     
     
@@ -281,6 +288,9 @@ Split GapsAppendedSplitGenerator::split(const cue::Disc &disc) const {
         SplitInputSegment inputSegment;
         inputSegment.inputFile = file.path;
         inputSegment.begin = htoaIndex->begin;
+        if (htoaIndex->begin != 0) {
+            throw std::runtime_error("HTOA (track 1, index 0) must start at 00:00:00 instead of " + to_string(htoaIndex->begin));
+        }
         if (nextIndexUsesTheSameFile) {
             inputSegment.end = nextIndex->begin;
         } else {
@@ -319,15 +329,7 @@ Split GapsAppendedSplitGenerator::split(const cue::Disc &disc) const {
             throw std::runtime_error("Track " + std::to_string(track->number) + " has non-zero pregap " + std::to_string(track->pregap.value().samples));
         }
         
-        SplitOutput currentOutput;
-        currentOutput.outputFile = _outputFileNameHandler(*track);
-        
-        auto& outputSheetFile = result.outputSheet->addFile();
-        outputSheetFile.path = currentOutput.outputFile;
-        outputSheetFile.fileType = "WAVE";
-        
-        auto outputSheetHasNoTracks = result.outputSheet->tracksBegin() == result.outputSheet->tracksEnd();
-        if (outputSheetHasNoTracks || (result.outputSheet->tracksEnd() - 1)->number != track->number) {
+        if (track->dataType != "AUDIO") {
             auto& outputSheetTrack = result.outputSheet->addTrack();
             outputSheetTrack.comments = track->comments;
             outputSheetTrack.dataType = track->dataType;
@@ -338,77 +340,112 @@ Split GapsAppendedSplitGenerator::split(const cue::Disc &disc) const {
             outputSheetTrack.songwriter = track->songwriter;
             outputSheetTrack.title = track->title;
             outputSheetTrack.pregap = track->pregap;
-        }
-        
-        bool hasNextTrack = (track + 1) != disc.tracksCend();
-        
-        for (auto index = track->indexesCbegin(); ; ++index) {
             
-            bool isNextTracksZeroIndex = false;
-            if (index == track->indexesCend()) {
-                if (hasNextTrack) {
-                    auto nextTrack = track + 1;
-                    auto firstIndexOfNextTrack = nextTrack->indexesCbegin();
-                    if (firstIndexOfNextTrack->index == 0) {
-                        index = firstIndexOfNextTrack;
-                        isNextTracksZeroIndex = true;
-                        auto& outputSheetTrack = result.outputSheet->addTrack();
-                        outputSheetTrack.comments = nextTrack->comments;
-                        outputSheetTrack.dataType = nextTrack->dataType;
-                        outputSheetTrack.flags = nextTrack->flags;
-                        outputSheetTrack.isrc = nextTrack->isrc;
-                        outputSheetTrack.number = nextTrack->number;
-                        outputSheetTrack.performer = nextTrack->performer;
-                        outputSheetTrack.songwriter = nextTrack->songwriter;
-                        outputSheetTrack.title = nextTrack->title;
-                    } else {
+            if (track->indexesCend() - track->indexesCbegin() != 1) {
+                throw std::runtime_error("non-AUDIO tracks must have exactly 1 INDEX");
+            }
+            
+            auto& index = *track->indexesCbegin();
+            auto& outputSheetIndex = outputSheetTrack.addIndex();
+            outputSheetIndex.begin = result.outputFiles.rbegin()->inputSegments.rbegin()->end.get();
+            outputSheetIndex.comments = index.comments;
+            outputSheetIndex.index = index.index;
+        } else {
+            SplitOutput currentOutput;
+            currentOutput.outputFile = _outputFileNameHandler(*track);
+            
+            auto& outputSheetFile = result.outputSheet->addFile();
+            outputSheetFile.path = currentOutput.outputFile;
+            outputSheetFile.fileType = "WAVE";
+            
+            auto outputSheetHasNoTracks = result.outputSheet->tracksBegin() == result.outputSheet->tracksEnd();
+            if (outputSheetHasNoTracks || (result.outputSheet->tracksEnd() - 1)->number != track->number) {
+                auto& outputSheetTrack = result.outputSheet->addTrack();
+                outputSheetTrack.comments = track->comments;
+                outputSheetTrack.dataType = track->dataType;
+                outputSheetTrack.flags = track->flags;
+                outputSheetTrack.isrc = track->isrc;
+                outputSheetTrack.number = track->number;
+                outputSheetTrack.performer = track->performer;
+                outputSheetTrack.songwriter = track->songwriter;
+                outputSheetTrack.title = track->title;
+                outputSheetTrack.pregap = track->pregap;
+            }
+            
+            bool hasNextTrack = (track + 1) != disc.tracksCend();
+            
+            for (auto index = track->indexesCbegin(); ; ++index) {
+                
+                bool isNextTracksZeroIndex = false;
+                if (index == track->indexesCend()) {
+                    if (!hasNextTrack) {
                         break;
                     }
-                } else {
+                    
+                    auto nextTrack = track + 1;
+                    if (nextTrack->dataType != "AUDIO") {
+                        break;
+                    }
+                    
+                    auto firstIndexOfNextTrack = nextTrack->indexesCbegin();
+                    if (firstIndexOfNextTrack->index != 0) {
+                        break;
+                    }
+                    
+                    index = firstIndexOfNextTrack;
+                    isNextTracksZeroIndex = true;
+                    auto& outputSheetTrack = result.outputSheet->addTrack();
+                    outputSheetTrack.comments = nextTrack->comments;
+                    outputSheetTrack.dataType = nextTrack->dataType;
+                    outputSheetTrack.flags = nextTrack->flags;
+                    outputSheetTrack.isrc = nextTrack->isrc;
+                    outputSheetTrack.number = nextTrack->number;
+                    outputSheetTrack.performer = nextTrack->performer;
+                    outputSheetTrack.songwriter = nextTrack->songwriter;
+                    outputSheetTrack.title = nextTrack->title;
+                }
+                
+                if (index->index == 0 && !isNextTracksZeroIndex) {
+                    continue;
+                }
+                
+                auto& file = index->file();
+                
+                SplitInputSegment inputSegment;
+                inputSegment.inputFile = file.path;
+                inputSegment.begin = index->begin;
+                inputSegment.end = none;
+                if (isNextTracksZeroIndex || (index + 1) != track->indexesCend()) {
+                    auto nextIndex = index + 1;
+                    if (&nextIndex->file() == &file) {
+                        inputSegment.end = nextIndex->begin;
+                    }
+                } else if ((track + 1) != disc.tracksCend()) {
+                    auto nextTrack = track + 1;
+                    auto nextTracksFirstIndex = nextTrack->indexesCbegin();
+                    if (&nextTracksFirstIndex->file() == &file) {
+                        inputSegment.end = nextTracksFirstIndex->begin;
+                    }
+                }
+                
+                auto& outputSheetIndex = (result.outputSheet->tracksEnd() - 1)->addIndex();
+                outputSheetIndex.comments = index->comments;
+                outputSheetIndex.index = index->index;
+                outputSheetIndex.setFile(outputSheetFile);
+                outputSheetIndex.begin = 0;
+                for (auto inputSegment : currentOutput.inputSegments) {
+                    outputSheetIndex.begin = outputSheetIndex.begin + (inputSegment.end.value_or(_inputFileDurationHandler(inputSegment.inputFile)) - inputSegment.begin);
+                }
+                
+                currentOutput.inputSegments.push_back(inputSegment);
+                
+                if (isNextTracksZeroIndex) {
                     break;
                 }
             }
             
-            if (index->index == 0 && !isNextTracksZeroIndex) {
-                continue;
-            }
-            
-            auto& file = index->file();
-            
-            SplitInputSegment inputSegment;
-            inputSegment.inputFile = file.path;
-            inputSegment.begin = index->begin;
-            inputSegment.end = none;
-            if (isNextTracksZeroIndex || (index + 1) != track->indexesCend()) {
-                auto nextIndex = index + 1;
-                if (&nextIndex->file() == &file) {
-                    inputSegment.end = nextIndex->begin;
-                }
-            } else if ((track + 1) != disc.tracksCend()) {
-                auto nextTrack = track + 1;
-                auto nextTracksFirstIndex = nextTrack->indexesCbegin();
-                if (&nextTracksFirstIndex->file() == &file) {
-                    inputSegment.end = nextTracksFirstIndex->begin;
-                }
-            }
-            
-            auto& outputSheetIndex = (result.outputSheet->tracksEnd() - 1)->addIndex();
-            outputSheetIndex.comments = index->comments;
-            outputSheetIndex.index = index->index;
-            outputSheetIndex.setFile(outputSheetFile);
-            outputSheetIndex.begin = 0;
-            for (auto inputSegment : currentOutput.inputSegments) {
-                outputSheetIndex.begin = outputSheetIndex.begin + (inputSegment.end.value_or(_inputFileDurationHandler(inputSegment.inputFile)) - inputSegment.begin);
-            }
-            
-            currentOutput.inputSegments.push_back(inputSegment);
-            
-            if (isNextTracksZeroIndex) {
-                break;
-            }
+            result.outputFiles.push_back(currentOutput);
         }
-        
-        result.outputFiles.push_back(currentOutput);
     }
     
     std::vector<SplitOutput> consolidatedOutputFiles;
