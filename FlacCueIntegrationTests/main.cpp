@@ -122,15 +122,15 @@ static cue::Time readFileLength(const std::string& path) {
     return result;
 }
 
-template<typename T> T fallback(const std::optional<T>& lastResort) {
-    return lastResort.value();
+template<typename T> T fallback(const T& lastResort) {
+    return lastResort;
 }
 
-template<typename T, typename ... Targs> T fallback(const std::optional<T>& x, const std::optional<Targs>&... args) {
+template<typename T, typename ... Targs> T fallback(const std::optional<T>& x, const Targs&... args) {
     if (x) {
-        return fallback(args...);
-    } else {
         return *x;
+    } else {
+        return fallback(args...);
     }
 }
 
@@ -349,7 +349,7 @@ int main(int argc, const char * argv[]) {
             if (!track) {
                 return (boost::format("%1% - HTOA.flac") % boost::io::group(std::setw(trackNumberDigits), std::setfill('0'), 0)).str();
             } else {
-                auto artist = fallback(track->performer, track->songwriter, disc->performer, disc->songwriter, std::optional<std::string>(""));
+                auto artist = fallback(track->performer, track->songwriter, disc->performer, disc->songwriter, std::string(""));
                 auto title = track->title.value_or("");
                 return (boost::format("%1% - %2% - %3%.flac")
                         % boost::io::group(std::setw(trackNumberDigits), std::setfill('0'), track->number)
@@ -454,7 +454,7 @@ int main(int argc, const char * argv[]) {
                                     split.outputSheet->songwriter,
                                     split.outputSheet->tracksCbegin()->performer,
                                     split.outputSheet->tracksCbegin()->songwriter,
-                                    std::optional<std::string>(""));
+                                    std::string(""));
         
         if (isSplittedDifferent) {
             auto cueFile = outputDir + "/" + filenameSafeString(albumArtist) + " - " + filenameSafeString(album) + ".cue";
