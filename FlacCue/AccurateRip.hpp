@@ -329,7 +329,8 @@ class ChecksumGenerator {
                     _offsetCalculationSamples.pop();
                 }
                 
-                if (_sampleIndex == _lastSampleIndexes[_derivedChecksumsCalculationTrack] + _maximumOffset) {
+                if (_derivedChecksumsCalculationTrack < numberOfTracks - 1 &&
+                    _sampleIndex == _lastSampleIndexes[_derivedChecksumsCalculationTrack] + _maximumOffset) {
                     ++_derivedChecksumsCalculationTrack;
                 }
                 
